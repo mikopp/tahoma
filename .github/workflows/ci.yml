@@ -9,6 +9,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
@@ -17,7 +18,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
+          cache: ${{ matrix.python-version != '3.11' && 'pip' || '' }}
 
       # pyoverkiz>=2.0 requires Python >=3.12; 3.11 can't install the real
       # dependency, so it only gets the network-free syntax check (CLAUDE.md
