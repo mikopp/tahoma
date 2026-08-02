@@ -47,7 +47,7 @@ There is a ChatGPT functionality. See this [documentation](https://github.com/pz
 #### 1. Download
 Download the zip file and extract it to a choosen folder:
 
-[Download :inbox_tray:](https://github.com/pzim-devdata/tahoma/releases/latest/download/tahoma.zip)
+[Download :inbox_tray:](../../releases/latest/download/tahoma.zip)
 
 #### 2. Install dependencies
 Run the following commands in your imported folder:
