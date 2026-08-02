@@ -5,27 +5,18 @@
 #MIT Licence
 
 import asyncio
-import sys
 import argparse
 import os
 import requests
 import aiohttp
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 from collections import defaultdict
-import re
-from getpass import getpass
-import time
-from pyoverkiz.enums import OverkizCommand
-from pyoverkiz.models import Command
-from pyoverkiz.models import PersistedActionGroup
 import base64
 import tahoma_config
 try:
-    import __version__
     str_newrelic='Github'
 except:
-    from tahoma import __version__
     str_newrelic='Pypi'
 
 
@@ -172,7 +163,7 @@ async def main() -> None:
 
             # Mise à jour du fichier stats
             stats_content = json.dumps(current_content, indent=2)
-            put_response = update_file(stats_url, stats_content, sha, f"Update stats ({machine_id[:6]})")
+            update_file(stats_url, stats_content, sha, f"Update stats ({machine_id[:6]})")
 
             # Création des statistiques mensuelles
             monthly_stats = defaultdict(lambda: {
@@ -321,7 +312,7 @@ Voici les informations du trafic de l'application Tahoma :
         devices = await client.get_devices()
         scenarios = await client.get_action_groups()
         try :
-            f2.write(f"Devices :\n")
+            f2.write("Devices :\n")
             for device in devices:
                 print("\n"+device.label+","+device.device_url+","+device.widget+","+device.ui_class+","+device.controllable_name+"")
                 print(f"{device.label},{device.device_url},{device.widget},{device.ui_class},{device.controllable_name}")
@@ -417,7 +408,7 @@ Voici les informations du trafic de l'application Tahoma :
         await client.close()
         print("\nScenes :\n")
     try :
-        f2.write(f"\nScenes :\n")
+        f2.write("\nScenes :\n")
         for scenario in scenarios:
             f2.write(f"{scenario.label},{scenario.oid}\n")
             f9.write(f"{scenario.label},{scenario.oid}\n")

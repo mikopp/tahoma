@@ -20,7 +20,6 @@ import re
 from getpass import getpass
 import time
 import datetime
-from pyoverkiz.client import OverkizClient, Command
 from pyoverkiz.enums import OverkizCommand
 from pyoverkiz.models import Command, Action
 from pyoverkiz.exceptions import NotAuthenticatedError
@@ -98,7 +97,6 @@ def countdown(duration):
 
 def main():
     icon_app = os.path.dirname(os.path.abspath(__file__))+'/icons/connected_house.png'
-    icon_chauffe_eau=os.path.dirname(os.path.abspath(__file__))+'/icons/water heater.png'
 
     passwd_file = os.path.dirname(os.path.abspath(__file__))+'/temp/identifier_file.txt'
 
@@ -110,7 +108,6 @@ def main():
     list_of_tahoma_plugs = os.path.dirname(os.path.abspath(__file__))+'/temp/plugs.txt'
     list_of_tahoma_sunscreens = os.path.dirname(os.path.abspath(__file__))+'/temp/sunscreens.txt'
     list_of_tahoma_scenes = os.path.dirname(os.path.abspath(__file__))+'/temp/scenarios.txt'
-    list_of_tahoma_sensors = os.path.dirname(os.path.abspath(__file__))+'/temp/sensors.txt'
     list_of_tahoma_states = os.path.dirname(os.path.abspath(__file__))+'/temp/states.txt'
     list_of_tahoma_lights = os.path.dirname(os.path.abspath(__file__))+'/temp/lights.txt'
     list_of_tahoma_pergolas = os.path.dirname(os.path.abspath(__file__))+'/temp/pergolas.txt'
@@ -158,7 +155,7 @@ def main():
 
     try:
         f = open(init_file, 'r')
-        init = f.read()
+        f.read()
         f.close()
         init_str=sha256(b"init").hexdigest()
     except:
@@ -465,7 +462,7 @@ def main():
                     for i in master_list :
                         bad_name.append(i.split(",")[0])
                     print("\nHere is the list of the installed devices for the "+category.upper()+" category :\n"+str(bad_name))
-                except Exception as e:
+                except Exception:
                     print("\nCan't obtain any device from the "+category.upper()+" category\nDid you downloaded the list of Tahoma's devices ?\nIf not, execute tahoma --getlist \nFor more info execute tahoma -h")
             print( '\nYou must provide a part of the NAME as argument \n The name must be a single and unique word, not taken by another device of the same category !\n For example if you have two devices called <Alarm 1> and <Alarm 2> you will need to choose <2> as device [NAME] for <Alarm 2> and not <Alarm>).\n You can also use the full NAME with [""].\n For example ["Alarm 2"]\n See tahoma --list or tahoma --help for info.')
             exit()
@@ -568,7 +565,6 @@ def main():
     if (remove_accent(str(args.action)).lower() == 'cancel' or remove_accent(str(args.action)).lower() == 'annuler' or ('cancel' in [remove_accent(str(args.suite[i])).lower() for i in range(0, len(args.suite), 3)]) or ('annuler' in [remove_accent(str(args.suite[i])).lower() for i in range(0, len(args.suite), 3)]) )and local_remote == 'local':
         print("Be careful !!!\n\nCan't perform a CANCEL action when using the local API of tahoma: \nRun tahoma with the '--remote' argument.\n\nThe program will start with the 'remote' parameter...\n")
         local_remote = "remote"
-        new_local_remote = "remote"
 
     ##########################PARAMETERING FUNCTION
 
@@ -1365,7 +1361,7 @@ def main():
                                     async with tahoma_config.build_client('remote', app_config) as client:
 #                                    async with client_factory() as client:
                                         await client.login()
-                                        exec_id = await client.execute_persisted_action_group(device_url)
+                                        await client.execute_persisted_action_group(device_url)
 #                                        error = 0
 #                                        return error
 #                                except (NotAuthenticatedError,ClientConnectorError) as e:
@@ -1387,7 +1383,7 @@ def main():
                                     async with tahoma_config.build_client('remote', app_config) as client:
                                         await client.login()
 #                                        get_state = await client.get_state(device_url)
-                                        get_state = await asyncio.wait_for( client.get_state( device_url ), timeout=10.0)
+                                        get_state = await asyncio.wait_for( client.get_state( device_url ), timeout=10.0)  # noqa: F841 - read via eval(state_function) below
                                         state_function=str(command_state[j]).replace("['","").replace("']","")
                                         message=str(good_name[j])+':'+str(eval(state_function))
                                         if logs == 'Y':
@@ -1429,7 +1425,7 @@ def main():
     #                                        print("Local API connection succesfull!")
     #                                        print(str(fonction))
     #                                        print(device_url)
-                                            exec_id = await client.execute_action_group( actions=[Action(device_url=device_url, commands=[fonction])] )
+                                            await client.execute_action_group( actions=[Action(device_url=device_url, commands=[fonction])] )
                                         error = 0
     #                                    print("execution")
                                         try:
