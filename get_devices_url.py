@@ -9,13 +9,14 @@ import sys
 import argparse
 import os
 import requests
+import aiohttp
 from datetime import datetime, timedelta
 import json
 from collections import defaultdict
 import re
 from getpass import getpass
 import time
-from pyoverkiz.const import SUPPORTED_SERVERS
+from pyoverkiz.const import SUPPORTED_SERVERS, OverkizServer
 from pyoverkiz.client import OverkizClient
 from pyoverkiz.enums import OverkizCommand
 from pyoverkiz.models import Command
@@ -49,6 +50,31 @@ async def main() -> None:
 
     server_choosen =  os.path.dirname(os.path.abspath(__file__))+'/temp/server_choosen.txt'
     init_file = os.path.dirname(os.path.abspath(__file__))+'/__init__.py'
+
+    token_file = os.path.dirname(os.path.abspath(__file__))+'/temp/token.txt'
+    gateway_id_file = os.path.dirname(os.path.abspath(__file__))+'/temp/gateway_id.txt'
+    local_remote_file = os.path.dirname(os.path.abspath(__file__))+'/temp/local_remote.txt'
+
+    try :
+        f = open(local_remote_file, 'r')
+        local_remote = f.read().strip()
+        f.close()
+    except FileNotFoundError:
+        local_remote = "remote"
+
+    try :
+        f = open(token_file, 'r')
+        token = f.read().strip()
+        f.close()
+    except FileNotFoundError:
+        token = ""
+
+    try :
+        f = open(gateway_id_file, 'r')
+        gateway_id = f.read().strip()
+        f.close()
+    except FileNotFoundError:
+        gateway_id = ""
 
 #    consent_statistics = os.path.dirname(os.path.abspath(__file__))+'/temp/consent_statistics.txt'
 
@@ -321,12 +347,39 @@ Voici les informations du trafic de l'application Tahoma :
         if args.server:
             serverchoice = (f'{args.server}')
 
-    async with OverkizClient(USERNAME, PASSWORD, SUPPORTED_SERVERS[serverchoice]) as client:
+    if local_remote == 'local' and gateway_id and token:
+        client_kwargs = {
+            "username": "",
+            "password": "",
+            "token": token,
+            "verify_ssl": False,
+            "server": OverkizServer(
+                name="Somfy TaHoma (local)",
+                endpoint=f"https://gateway-{gateway_id}.local:8443/enduser-mobile-web/1/enduserAPI/",
+                manufacturer="Somfy",
+                configuration_url=None,
+            ),
+        }
+        session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False))
+        client = OverkizClient(**client_kwargs, session=session)
+        try:
+            await client.login()
+        except Exception as exception:  # pylint: disable=broad-except
+            await session.close()
+            print(exception)
+            print("\nCould not connect to the local API. Falling back to the cloud API.")
+            local_remote = "remote"
+    if local_remote != 'local' or not (gateway_id and token):
+        client = OverkizClient(USERNAME, PASSWORD, SUPPORTED_SERVERS[serverchoice])
+        await client.__aenter__()
         try:
             await client.login()
         except Exception as exception:  # pylint: disable=broad-except
             print(exception)
+            await client.__aexit__(None, None, None)
             return
+
+    try:
         devices = await client.get_devices()
         scenarios = await client.get_scenarios()
         try :
@@ -363,7 +416,7 @@ Voici les informations du trafic de l'application Tahoma :
                 elif "Light" in device.widget:
                     f12.write(device.label+","+device.id+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_lights)
-                elif "PositionableTiltedScreen" in device.widget or "PergolaHorizontalAwning" in device.widget:
+                elif "PositionableTiltedScreen" in device.widget or "PergolaHorizontalAwning" in device.widget or "BioclimaticPergola" in device.widget:
                     f13.write(device.label+","+device.id+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_pergolas)
                 else :
@@ -422,6 +475,8 @@ Voici les informations du trafic de l'application Tahoma :
                     i=i+1
         except Exception as e :
             print(e)
+    finally:
+        await client.close()
         print("\nScenes :\n")
     try :
         f2.write(f"\nScenes :\n")

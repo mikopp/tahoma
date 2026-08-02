@@ -776,6 +776,7 @@ def main():
             except ValueError:
                 print("\nDid you downloaded the list of Tahoma's devices ?.\nExecute tahoma --getlist \nFor more info execute tahoma -h or tahoma --info")
                 exit()
+            widget_of=[]
             for i in master_list :
                 bad_name.append(i.split(",")[0])
                 if str(name).startswith("[") :
@@ -783,23 +784,28 @@ def main():
                         url.append(i.split(",")[1])
                         too_many_urls.append(i.split(",")[0])
                         good_name.append(i.split(",")[0])
+                        widget_of.append(i.split(",")[2] if len(i.split(",")) > 2 else '')
                 else :
                     if remove_accent(i.split(",")[0]) in remove_accent(str(name)) or remove_accent(str(name)) in remove_accent(i.split(",")[0]) :
                          url.append(i.split(",")[1])
                          too_many_urls.append(i.split(",")[0])
                          good_name.append(i.split(",")[0])
+                         widget_of.append(i.split(",")[2] if len(i.split(",")) > 2 else '')
             if len(url)== 0 :
                 print("There is no match. The NAME you gave is not exact. Did you mean : "+str(bad_name)+" ? Choose a UNIQUE part of word from this results as NAME argument or use [''] with the full name\nIf you don't find your device in this results try tahoma --getlist\nSee tahoma --list-names for help.")
                 exit()
             if len(url) > 1 :
                 print("There is more than one match. The NAME you gave is not exact. Choose a UNIQUE part of word from this results as NAME argument or use [''] with the full name : "+str(too_many_urls)+"\nSee tahoma --list-names for help.")
                 exit()
+            # Bioclimatic pergolas (slats that tilt) use openSlats/closeSlats/setOrientation.
+            # Other pergolas (awning-type, e.g. PergolaHorizontalAwning/PositionableTiltedScreen) behave like sunscreens/shutters.
+            is_bioclimatic = 'BioclimaticPergola' in widget_of[0]
             success = 1
             if remove_accent(action).upper() == "OPEN" or remove_accent(action).upper() == "OUVRIR" :
-                fonction = Command(OverkizCommand.OPEN, [0])
+                fonction = Command(OverkizCommand.OPEN_SLATS, []) if is_bioclimatic else Command(OverkizCommand.OPEN, [0])
                 success = 0
             elif remove_accent(action).upper() == 'CLOSE' or remove_accent(action).upper() == "FERMER" :
-                fonction = Command(OverkizCommand.CLOSE, [0])
+                fonction = Command(OverkizCommand.CLOSE_SLATS, []) if is_bioclimatic else Command(OverkizCommand.CLOSE, [0])
                 success = 0
             elif remove_accent(action).upper() == 'STOP' :
                 print("Please note that the 'stop' function is only compatible with IO protocols and will not work with RTS devices. If you are using an RTS device, please use the command 'tahoma CANCEL LAST ACTION' instead.")
@@ -810,15 +816,19 @@ def main():
                 success = 0
             elif str(action).isnumeric() == True :
                 if 0 <= int(action) <= 100 :
-                    fonction = Command(OverkizCommand.SET_CLOSURE, [int(action)])
+                    if is_bioclimatic :
+                        fonction = Command(OverkizCommand.SET_ORIENTATION, [int(action)])
+                        print('Will set orientation to '+str(action)+' %')
+                    else :
+                        fonction = Command(OverkizCommand.SET_CLOSURE, [int(action)])
+                        print('Will close to '+str(action)+' %')
+                        print("Be careful! This function is only available for IO protocols. It doesn't work with RTS devices...")
                     success = 0
-                    print('Will close to '+str(action)+' %')
-                    print("Be careful! This function is only available for IO protocols. It doesn't work with RTS devices...")
                 else :
                     print("Your ACTION must be between 0 and 100. You have entered: "+str(action))
             else :
                 print( "\n'"+action+"'"+" is not a valide action.\n")
-                print("Please provide one of this argument as action : [open close stop my]")
+                print("Please provide one of this argument as action : [open close stop my NUMBER]")
             str1 = " "
             if success == 0:
 #                print("Output action : "+remove_accent(action).upper()+" "+remove_accent(category)+" "+str1.join(good_name)+ " \nwith url : "+str1.join(url))
@@ -828,7 +838,7 @@ def main():
                         with open(log_place, "a") as f:
                             f.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-{message}\n")
                             f.close()
-                    except: 
+                    except:
                         print('Could not access the log file. Permission denied')
                         print("If you don’t want to see this message again, reconfigure Tahoma to not create a log file (tahoma --configure) \nor install Tahoma in an accessible folder.")
                 print(message)
@@ -1323,7 +1333,7 @@ def main():
                     great = 1
                     for value in [False,True]: # set verify_ssl to True then False if error occur. Verify_ssl to False if you don't use the .local hostname
                         if great == 1:
-                            if remove_accent(category) == 'sunscreen' or remove_accent(category) == 'rideau' or remove_accent(category) == 'shutter' or remove_accent(category) == 'volet'or remove_accent(category) == 'heater' or remove_accent(category) == 'chauffage':
+                            if remove_accent(category) == 'sunscreen' or remove_accent(category) == 'rideau' or remove_accent(category) == 'shutter' or remove_accent(category) == 'volet'or remove_accent(category) == 'heater' or remove_accent(category) == 'chauffage' or remove_accent(category) == 'pergola':
                                 new_local_remote = 'local'
                                 if args.local:
                                     print("Tahoma has been executed with the 'local' config for the category '"+category.lower()+"'")
@@ -1331,7 +1341,7 @@ def main():
                                     session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=value))
                                     great = 0
 #                                    print("verify_ssl="+str(value))
-                                    overkiz_function = 'OverkizClient(username="", password="", token="'+token+'", session=session, server=OverkizServer(name="Somfy TaHoma (local)",endpoint="https://gateway-'+gateway_id+'.local:8443/enduser-mobile-web/1/enduserAPI/",manufacturer="Somfy",configuration_url=None,))'
+                                    overkiz_function = 'OverkizClient(username="", password="", token="'+token+'", session=session, verify_ssl='+str(value)+', server=OverkizServer(name="Somfy TaHoma (local)",endpoint="https://gateway-'+gateway_id+'.local:8443/enduser-mobile-web/1/enduserAPI/",manufacturer="Somfy",configuration_url=None,))'
                                     break
                                 except Exception as e:
                                     print("Error occure with verify_ssl="+str(value)+":\n"+e)
