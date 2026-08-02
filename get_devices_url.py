@@ -318,7 +318,20 @@ Voici les informations du trafic de l'application Tahoma :
     parser.add_argument("-s", "--server")
     parser.add_argument("-g", action='store_true') #store_true for not asking argument
     parser.add_argument("--getlist", action='store_true') #store_true for not asking argument
+    parser.add_argument("--token")
+    parser.add_argument("--pin")
+    parser.add_argument("--local", action='store_true')
+    parser.add_argument("--remote", action='store_true')
     args = parser.parse_args()
+
+    if args.token:
+        token = args.token
+    if args.pin:
+        gateway_id = args.pin
+    if args.local:
+        local_remote = "local"
+    if args.remote:
+        local_remote = "remote"
 
     try:
         f = open(init_file, 'r')
