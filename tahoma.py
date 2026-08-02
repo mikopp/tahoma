@@ -22,9 +22,8 @@ import time
 import datetime
 from pyoverkiz.client import OverkizClient, Command
 from pyoverkiz.enums import OverkizCommand
-from pyoverkiz.models import Command
-from pyoverkiz.models import Scenario
-from pyoverkiz.exceptions import NotAuthenticatedException
+from pyoverkiz.models import Command, Action
+from pyoverkiz.exceptions import NotAuthenticatedError
 from aiohttp.client_exceptions import ClientConnectorError
 import requests
 import base64
@@ -622,21 +621,21 @@ def main():
                 exit()
             success = 1
             if remove_accent(action).upper() == "OPEN" or remove_accent(action).upper() == "OUVRIR" :
-                fonction = Command(OverkizCommand.OPEN, [0])
+                fonction = Command(name=OverkizCommand.OPEN, parameters=[0])
                 success = 0
             elif remove_accent(action).upper() == 'CLOSE' or remove_accent(action).upper() == "FERMER" :
-                fonction = Command(OverkizCommand.CLOSE, [0])
+                fonction = Command(name=OverkizCommand.CLOSE, parameters=[0])
                 success = 0
             elif remove_accent(action).upper() == 'STOP' :
                 print("Please note that the 'stop' ACTION is only compatible with IO protocols and will not work with RTS devices. If you are using an RTS device, please use the command 'tahoma CANCEL LAST ACTION' instead.")
-                fonction = Command(OverkizCommand.STOP, [])
+                fonction = Command(name=OverkizCommand.STOP, parameters=[])
                 success = 0
             elif remove_accent(action).upper() == 'MY' :
-                fonction = Command(OverkizCommand.MY, [0])
+                fonction = Command(name=OverkizCommand.MY, parameters=[0])
                 success = 0
             elif str(action).isnumeric() == True :
                 if 0 <= int(action) <= 100 :
-                    fonction = Command(OverkizCommand.SET_CLOSURE, [int(action)])
+                    fonction = Command(name=OverkizCommand.SET_CLOSURE, parameters=[int(action)])
                     success = 0
                     print('Will close to '+str(action)+' %')
                     print("Be careful! This function is only available for IO protocols. It doesn't work with RTS devices...")
@@ -691,21 +690,21 @@ def main():
                 exit()
             success = 1
             if remove_accent(action).upper() == "OPEN" or remove_accent(action).upper() == "OUVRIR" :
-                fonction = Command(OverkizCommand.OPEN, [0])
+                fonction = Command(name=OverkizCommand.OPEN, parameters=[0])
                 success = 0
             elif remove_accent(action).upper() == 'CLOSE' or remove_accent(action).upper() == "FERMER" :
-                fonction = Command(OverkizCommand.CLOSE, [0])
+                fonction = Command(name=OverkizCommand.CLOSE, parameters=[0])
                 success = 0
             elif remove_accent(action).upper() == 'STOP' :
                 print("Please note that the 'stop' function is only compatible with IO protocols and will not work with RTS devices. If you are using an RTS device, please use the command 'tahoma CANCEL LAST ACTION' instead.")
-                fonction = Command(OverkizCommand.STOP, [])
+                fonction = Command(name=OverkizCommand.STOP, parameters=[])
                 success = 0
             elif remove_accent(action).upper() == 'MY' :
-                fonction = Command(OverkizCommand.MY, [0])
+                fonction = Command(name=OverkizCommand.MY, parameters=[0])
                 success = 0
             elif str(action).isnumeric() == True :
                 if 0 <= int(action) <= 100 :
-                    fonction = Command(OverkizCommand.SET_CLOSURE, [int(action)])
+                    fonction = Command(name=OverkizCommand.SET_CLOSURE, parameters=[int(action)])
                     success = 0
                     print('Will close to '+str(action)+' %')
                     print("Be careful! This function is only available for IO protocols. It doesn't work with RTS devices...")
@@ -766,25 +765,25 @@ def main():
             is_bioclimatic = 'BioclimaticPergola' in widget_of[0]
             success = 1
             if remove_accent(action).upper() == "OPEN" or remove_accent(action).upper() == "OUVRIR" :
-                fonction = Command(OverkizCommand.OPEN_SLATS, []) if is_bioclimatic else Command(OverkizCommand.OPEN, [0])
+                fonction = Command(name=OverkizCommand.OPEN_SLATS, parameters=[]) if is_bioclimatic else Command(name=OverkizCommand.OPEN, parameters=[0])
                 success = 0
             elif remove_accent(action).upper() == 'CLOSE' or remove_accent(action).upper() == "FERMER" :
-                fonction = Command(OverkizCommand.CLOSE_SLATS, []) if is_bioclimatic else Command(OverkizCommand.CLOSE, [0])
+                fonction = Command(name=OverkizCommand.CLOSE_SLATS, parameters=[]) if is_bioclimatic else Command(name=OverkizCommand.CLOSE, parameters=[0])
                 success = 0
             elif remove_accent(action).upper() == 'STOP' :
                 print("Please note that the 'stop' function is only compatible with IO protocols and will not work with RTS devices. If you are using an RTS device, please use the command 'tahoma CANCEL LAST ACTION' instead.")
-                fonction = Command(OverkizCommand.STOP, [])
+                fonction = Command(name=OverkizCommand.STOP, parameters=[])
                 success = 0
             elif remove_accent(action).upper() == 'MY' :
-                fonction = Command(OverkizCommand.MY, [0])
+                fonction = Command(name=OverkizCommand.MY, parameters=[0])
                 success = 0
             elif str(action).isnumeric() == True :
                 if 0 <= int(action) <= 100 :
                     if is_bioclimatic :
-                        fonction = Command(OverkizCommand.SET_ORIENTATION, [int(action)])
+                        fonction = Command(name=OverkizCommand.SET_ORIENTATION, parameters=[int(action)])
                         print('Will set orientation to '+str(action)+' %')
                     else :
-                        fonction = Command(OverkizCommand.SET_CLOSURE, [int(action)])
+                        fonction = Command(name=OverkizCommand.SET_CLOSURE, parameters=[int(action)])
                         print('Will close to '+str(action)+' %')
                         print("Be careful! This function is only available for IO protocols. It doesn't work with RTS devices...")
                     success = 0
@@ -857,10 +856,10 @@ def main():
 
             success = 1
             if remove_accent(action).upper() == "ON" or remove_accent(action).upper() == "ALLUMER" :
-                fonction = Command(OverkizCommand.ON)
+                fonction = Command(name=OverkizCommand.ON)
                 success = 0
             elif remove_accent(action).upper() == 'OFF' or remove_accent(action).upper() == "ETEINDRE" :
-                fonction = Command(OverkizCommand.OFF)
+                fonction = Command(name=OverkizCommand.OFF)
                 success = 0
             elif remove_accent(action).upper() == 'TOGGLE' or remove_accent(action).upper() == "BASCULER" :
                 f = open(list_of_tahoma_states, 'r')
@@ -874,10 +873,10 @@ def main():
                             get_state = await asyncio.wait_for( client.get_state(str(url[0])), timeout=10.0)
 #                            print(str(get_state).upper())
                             if "'OFF'" in str(get_state).upper():
-                                fonction = Command(OverkizCommand.ON)
+                                fonction = Command(name=OverkizCommand.ON)
                                 return fonction
                             else:
-                                fonction = Command(OverkizCommand.OFF)
+                                fonction = Command(name=OverkizCommand.OFF)
                                 return fonction
                     overkiz_fonction = asyncio.run(state())
                     fonction = overkiz_fonction
@@ -932,19 +931,19 @@ def main():
                 exit()
             success = 1
             if remove_accent(action).upper() == "ARM" or remove_accent(action).upper() == "ACTIVER" or remove_accent(action).upper() == "ON":
-                fonction = Command(OverkizCommand.ARM)
+                fonction = Command(name=OverkizCommand.ARM)
                 success = 0
             elif remove_accent(action).upper() == 'DISARM' or remove_accent(action).upper() == "DESACTIVER" or remove_accent(action).upper() == "OFF" :
-                fonction = Command(OverkizCommand.DISARM)
+                fonction = Command(name=OverkizCommand.DISARM)
                 success = 0
             elif remove_accent(action).upper() == 'PARTIAL' or remove_accent(action).upper() == "PARTIEL" :
-                fonction = Command(OverkizCommand.PARTIAL)
+                fonction = Command(name=OverkizCommand.PARTIAL)
                 success = 0
             elif remove_accent(action).upper() == 'ARM_NIGHT' or remove_accent(action).upper() == "ACTIVER_NUIT" :
-                fonction = Command(OverkizCommand.ARM_NIGHT)
+                fonction = Command(name=OverkizCommand.ARM_NIGHT)
                 success = 0
             elif remove_accent(action).upper() == 'ARM_AWAY' or remove_accent(action).upper() == "ACTIVER_PARTI" :
-                fonction = Command(OverkizCommand.ARM_AWAY)
+                fonction = Command(name=OverkizCommand.ARM_AWAY)
                 success = 0
             else :
                 print( "\n'"+action+"'"+" is not a valide action.\n")
@@ -997,27 +996,27 @@ def main():
                 exit()
             success = 1
             if remove_accent(action).lower() == "comfort" or remove_accent(action).lower() == "confort" :
-                fonction = Command(OverkizCommand.SET_HEATING_LEVEL,['comfort'])
+                fonction = Command(name=OverkizCommand.SET_HEATING_LEVEL, parameters=['comfort'])
                 success = 0
             elif remove_accent(action).lower() == 'frostprotection' or remove_accent(action).lower() == "horsgel" :
-                fonction = Command(OverkizCommand.SET_HEATING_LEVEL,['frostprotection'])
+                fonction = Command(name=OverkizCommand.SET_HEATING_LEVEL, parameters=['frostprotection'])
                 success = 0
             elif remove_accent(action).lower() == 'comfort-1' or remove_accent(action).lower() == "confort-1" :
-                fonction = Command(OverkizCommand.SET_HEATING_LEVEL,['comfort-1'])
+                fonction = Command(name=OverkizCommand.SET_HEATING_LEVEL, parameters=['comfort-1'])
                 success = 0
             elif remove_accent(action).lower() == 'comfort-2' or remove_accent(action).lower() == "confort-2" :
-                fonction = Command(OverkizCommand.SET_HEATING_LEVEL,['comfort-2'])
+                fonction = Command(name=OverkizCommand.SET_HEATING_LEVEL, parameters=['comfort-2'])
                 success = 0
             elif remove_accent(action).lower() == 'eco' :
-                fonction = Command(OverkizCommand.SET_HEATING_LEVEL,['eco'])
+                fonction = Command(name=OverkizCommand.SET_HEATING_LEVEL, parameters=['eco'])
                 success = 0
             elif remove_accent(action).lower() == 'off' or remove_accent(action).lower() == "eteindre" :
-                fonction = Command(OverkizCommand.SET_HEATING_LEVEL,['off'])
+                fonction = Command(name=OverkizCommand.SET_HEATING_LEVEL, parameters=['off'])
                 success = 0
             elif remove_accent(action).lower() == 'standby' or remove_accent(action).lower() == "veille" :
                 if "adjustable" in widget_heater.lower() or "setpoint" in widget_heater.lower() :
 #                if widget_heater == "AtlanticElectricalHeaterWithAdjustableTemperatureSetpoint" :
-                    fonction = Command(OverkizCommand.SET_OPERATING_MODE, ['standby'])
+                    fonction = Command(name=OverkizCommand.SET_OPERATING_MODE, parameters=['standby'])
                     success = 0
                 else:
                     str1 = " "
@@ -1035,7 +1034,7 @@ def main():
             elif remove_accent(action).lower() == 'manual' or remove_accent(action).lower() == "manuel" :
                 if "adjustable" in widget_heater.lower() or "setpoint" in widget_heater.lower() :
 #                if widget_heater == "AtlanticElectricalHeaterWithAdjustableTemperatureSetpoint" :
-                    fonction = Command(OverkizCommand.SET_OPERATING_MODE, ['basic'])
+                    fonction = Command(name=OverkizCommand.SET_OPERATING_MODE, parameters=['basic'])
                     success = 0
                 else:
                     str1 = " "
@@ -1053,7 +1052,7 @@ def main():
             elif remove_accent(action).lower() == 'prog' :
                 if "adjustable" in widget_heater.lower() or "setpoint" in widget_heater.lower() :
 #                if widget_heater == "AtlanticElectricalHeaterWithAdjustableTemperatureSetpoint" :
-                    fonction = Command(OverkizCommand.SET_OPERATING_MODE, ['internal'])
+                    fonction = Command(name=OverkizCommand.SET_OPERATING_MODE, parameters=['internal'])
                     success = 0
                 else:
                     str1 = " "
@@ -1071,7 +1070,7 @@ def main():
             elif remove_accent(action).lower() == 'auto' :
                 if "adjustable" in widget_heater.lower() or "setpoint" in widget_heater.lower() :
 #                if widget_heater == "AtlanticElectricalHeaterWithAdjustableTemperatureSetpoint" :
-                    fonction = Command(OverkizCommand.SET_OPERATING_MODE, ['auto'])
+                    fonction = Command(name=OverkizCommand.SET_OPERATING_MODE, parameters=['auto'])
                     success = 0
                 else:
                     str1 = " "
@@ -1089,7 +1088,7 @@ def main():
             elif str(action).replace(".","").isnumeric():
                 if "adjustable" in widget_heater.lower() or "setpoint" in widget_heater.lower() :
 #                if widget_heater == "AtlanticElectricalHeaterWithAdjustableTemperatureSetpoint" :
-                    fonction = Command(OverkizCommand.SET_TARGET_TEMPERATURE, [float(str(action))])
+                    fonction = Command(name=OverkizCommand.SET_TARGET_TEMPERATURE, parameters=[float(str(action))])
                     success = 0
                 else:
                     str1 = " "
@@ -1155,7 +1154,7 @@ def main():
                 exit()
 
             
-            #fonction = Command(OverkizCommand.SET_HEATING_LEVEL,['comfort'])
+            #fonction = Command(name=OverkizCommand.SET_HEATING_LEVEL, parameters=['comfort'])
             #exec_id = await client.execute_scenario(device_url)
 
             str1 = " "
@@ -1254,10 +1253,10 @@ def main():
                     gateway_id = ""
                 if not gateway_id:
                     for gateway in gateways:
-                        token2 = await client.generate_local_token(gateway.id)
-                        await client.activate_local_token(gateway_id=gateway.id, token=token2, label="tahoma by @pzim-devdata")
-                        if all(char.isdigit() or char == '-' for char in gateway.id) and gateway.id :
-                                gateway_id_list.append(gateway.id)
+                        token2 = await client.generate_local_token(gateway.gateway_id)
+                        await client.activate_local_token(gateway_id=gateway.gateway_id, token=token2, label="tahoma by @pzim-devdata")
+                        if all(char.isdigit() or char == '-' for char in gateway.gateway_id) and gateway.gateway_id :
+                                gateway_id_list.append(gateway.gateway_id)
                                 #If many tahoma gateways, choosing the first one:
                                 if len(gateway_id_list) > 1:
                                     print("You have more than one tahoma gateway, the process will be executed with the first one :")
@@ -1366,10 +1365,10 @@ def main():
                                     async with tahoma_config.build_client('remote', app_config) as client:
 #                                    async with client_factory() as client:
                                         await client.login()
-                                        exec_id = await client.execute_scenario(device_url)
+                                        exec_id = await client.execute_persisted_action_group(device_url)
 #                                        error = 0
 #                                        return error
-#                                except (NotAuthenticatedException,ClientConnectorError) as e:
+#                                except (NotAuthenticatedError,ClientConnectorError) as e:
 #                                    print(e)
 #                                    error = 1
 #                                    return error
@@ -1409,8 +1408,8 @@ def main():
                                         for execution in executions:
                                             execution_id=str(execution.id)
                                         try:
-                                            await client.cancel_command(str(execution_id))
-                                            message="The last command: '"+execution.action_group['actions'][0]['commands'][0]['name']+"' has been successfully cancelled."
+                                            await client.cancel_execution(str(execution_id))
+                                            message="The last command: '"+str(execution.action_group.actions[0].commands[0].name)+"' has been successfully cancelled."
                                             if logs == 'Y':
                                                 try:
                                                     with open(log_place, "a") as f:
@@ -1430,7 +1429,7 @@ def main():
     #                                        print("Local API connection succesfull!")
     #                                        print(str(fonction))
     #                                        print(device_url)
-                                            exec_id = await client.execute_command( device_url, fonction )
+                                            exec_id = await client.execute_action_group( actions=[Action(device_url=device_url, commands=[fonction])] )
                                         error = 0
     #                                    print("execution")
                                         try:
@@ -1443,7 +1442,7 @@ def main():
                                             await session.close()
                                         except: pass
                                         return error
-                                except (NotAuthenticatedException,ClientConnectorError) as e:
+                                except (NotAuthenticatedError,ClientConnectorError) as e:
                                     print(e)
                                     error = 1
                                     try:
