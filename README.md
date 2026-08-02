@@ -188,6 +188,62 @@ You can configure the local API with the `tahoma -c` command or override the def
 
 
 
+# Manufacturer data and manufacturer procedures (advanced) :
+
+Some devices expose the internal data and the service procedures of their manufacturer, through the
+Overkiz `readManufacturerData` and `executeManufacturerProcedure` commands. A Somfy bioclimatic
+pergola, for instance, can report its production date, its number of detected obstacles or its
+rotation direction, and offers procedures such as saving an end limit or resetting the actuator.
+
+Support depends on the device **and on its firmware**, so it is not something tahoma can assume from
+the device category. It is discovered at run time by `tahoma --getlist`, which reads the commands each
+device declares and the `core:SupportedReadableManufacturerData` / `core:SupportedManufacturerProcedures`
+attributes it advertises, and stores the result in `temp/manufacturer.txt`.
+
+> [!WARNING]
+> Manufacturer procedures act directly on the settings stored inside the device. They can move the end
+> limits, erase the saved positions or factory-reset the motor. **There is no undo**, and tahoma cannot
+> tell which procedures are safe for your hardware. Reading (`read:...`) changes nothing and is always
+> allowed ; running a procedure requires the explicit `--allow-manufacturer-procedure` option.
+
+## See which of your devices support it :
+
+`tahoma -lm` or `tahoma --list-manufacturer` (`-lmf` / `--list-manufacturer-french` in french)
+
+It prints, for each supporting device, the manufacturer commands it declares, the data it can read and
+the procedures it offers with their parameters.
+
+For a single device : `tahoma list manufacturer ["Pergola"]`
+
+## Read a manufacturer data :
+
+`tahoma read:<DATA_NAME> manufacturer ["<NAME>"]`
+
+For example : `tahoma read:current_position manufacturer ["Pergola"]`
+
+This only reads, it changes nothing on the device. The device answers asynchronously, so tahoma waits a
+few seconds for the answer and then prints the manufacturer state it received. `<DATA_NAME>` is checked
+against the list the device advertises, so a typo is rejected before anything is sent.
+
+## Run a manufacturer procedure :
+
+`tahoma procedure:<PROCEDURE_NAME> manufacturer ["<NAME>"] --allow-manufacturer-procedure`
+
+For example : `tahoma procedure:save_my_position manufacturer ["Pergola"] --allow-manufacturer-procedure`
+
+A few procedures take parameters, given as `:<PARAM>=<VALUE>` (several separated by a comma) :
+
+`tahoma procedure:dead_man_down:duration=5 manufacturer ["Pergola"] --allow-manufacturer-procedure`
+
+Without `--allow-manufacturer-procedure`, tahoma refuses, explains why, and shows the exact command to
+repeat if that is really what you want. Nothing is sent to the gateway in that case. The option has no
+short form on purpose, so that it cannot be typed by accident.
+
+`writeManufacturerData` is deliberately **not** exposed by tahoma. `tahoma -lm` reports when a device
+declares it, but tahoma never sends it.
+
+
+
 # Create a PATH to tahoma :
 
 To be able to run tahoma directly in the terminal, without going to the source package, you should add the tahoma's folder to the PATH :

@@ -95,6 +95,88 @@ def countdown(duration):
 #    print("Sucess!")
 #    sys.stdout.write("\rFin!\n")
 
+MANUFACTURER_WARNING = (
+    "!! WARNING : manufacturer procedures act directly on the settings stored inside the\n"
+    "   device. They can move the end limits, erase the saved positions or factory-reset\n"
+    "   the motor. There is no undo, and tahoma cannot tell which procedures are safe for\n"
+    "   your hardware. Reading (read:...) changes nothing and is always allowed ; running a\n"
+    "   procedure requires the --allow-manufacturer-procedure option."
+)
+
+MANUFACTURER_WARNING_FRENCH = (
+    "!! ATTENTION : les procedures fabricant agissent directement sur les reglages stockes\n"
+    "   dans l'equipement. Elles peuvent deplacer les fins de course, effacer les positions\n"
+    "   enregistrees ou reinitialiser le moteur. Il n'y a pas de retour en arriere, et tahoma\n"
+    "   ne peut pas savoir quelles procedures sont sans risque pour votre materiel. La lecture\n"
+    "   (read:...) ne modifie rien et est toujours autorisee ; l'execution d'une procedure\n"
+    "   necessite l'option --allow-manufacturer-procedure."
+)
+
+
+def read_manufacturer_file(path):
+    """Parse temp/manufacturer.txt into {device_url: {...}}, keeping the discovery order.
+
+    The file is written by get_devices_url.py (tahoma --getlist) with one line per
+    capability :
+        <label>,<device_url>,<widget>,supports,<read|procedure|write>
+        <label>,<device_url>,<widget>,read,<data_name>
+        <label>,<device_url>,<widget>,procedure,<procedure_name>,<param>;<param>
+    Several lines describe the same device, so they are collapsed per device_url.
+    """
+    devices = {}
+    with open(path, 'r') as f:
+        content = f.read()
+    for line in content.split("\n"):
+        if not line.strip():
+            continue
+        fields = line.split(",")
+        if len(fields) < 5:
+            continue
+        label, device_url, widget, kind, value = fields[0], fields[1], fields[2], fields[3], fields[4]
+        device = devices.setdefault(device_url, {
+            'label': label,
+            'device_url': device_url,
+            'widget': widget,
+            'supports': [],
+            'reads': [],
+            'procedures': {},
+        })
+        if kind == 'supports':
+            device['supports'].append(value)
+        elif kind == 'read':
+            device['reads'].append(value)
+        elif kind == 'procedure':
+            params = fields[5] if len(fields) > 5 else ''
+            device['procedures'][value] = [p for p in params.split(";") if p]
+    return devices
+
+
+def print_manufacturer_device(device, french=False):
+    """Print what a single device supports, as collected by read_manufacturer_file()."""
+    if french:
+        print("\nEquipement : "+device['label']+"  ("+device['widget']+")")
+        print("  URL             : "+device['device_url'])
+        print("  Commandes       : "+(", ".join(device['supports']) or "aucune"))
+        print("  Donnees lisibles ("+str(len(device['reads']))+") : "+(", ".join(device['reads']) or "aucune annoncee"))
+        if device['procedures']:
+            print("  Procedures ("+str(len(device['procedures']))+") :")
+            for procedure_name, params in device['procedures'].items():
+                print("    - "+procedure_name+(" (parametres : "+", ".join(params)+")" if params else ""))
+        else:
+            print("  Procedures      : aucune annoncee")
+    else:
+        print("\nDevice : "+device['label']+"  ("+device['widget']+")")
+        print("  URL             : "+device['device_url'])
+        print("  Commands        : "+(", ".join(device['supports']) or "none"))
+        print("  Readable data ("+str(len(device['reads']))+") : "+(", ".join(device['reads']) or "none advertised"))
+        if device['procedures']:
+            print("  Procedures ("+str(len(device['procedures']))+") :")
+            for procedure_name, params in device['procedures'].items():
+                print("    - "+procedure_name+(" (parameters : "+", ".join(params)+")" if params else ""))
+        else:
+            print("  Procedures      : none advertised")
+
+
 def main():
     icon_app = os.path.dirname(os.path.abspath(__file__))+'/icons/connected_house.png'
 
@@ -111,6 +193,7 @@ def main():
     list_of_tahoma_states = os.path.dirname(os.path.abspath(__file__))+'/temp/states.txt'
     list_of_tahoma_lights = os.path.dirname(os.path.abspath(__file__))+'/temp/lights.txt'
     list_of_tahoma_pergolas = os.path.dirname(os.path.abspath(__file__))+'/temp/pergolas.txt'
+    list_of_tahoma_manufacturers = os.path.dirname(os.path.abspath(__file__))+'/temp/manufacturer.txt'
 
     token_file = os.path.dirname(os.path.abspath(__file__))+'/temp/token.txt'
     gateway_id_file = os.path.dirname(os.path.abspath(__file__))+'/temp/gateway_id.txt'
@@ -133,10 +216,10 @@ def main():
     except FileNotFoundError:
         pass
 
-    list_categories = ['shutter','spotalarm','plug','light','alarm','heater','sunscreen','pergola','scene','sensor']
-    list_categories_french = ['volet','spotalarme','prise','lumiere','alarme','chauffage','rideau','pergola','scenario','capteur']
-    list_actions = ['[open,close,stop,my,NUMBER]','[on,off,toggle]','[on,off,toggle]','[on,off,toggle]','[arm,disarm,partial,arm_night,arm_away]','[comfort,comfort-1,comfort-2,eco,frostprotection,off,standby,manual,auto,prog,NUMBER]','[open,close,stop,my,NUMBER]','[open,close,stop,my,NUMBER]','[on,activate,launch,execute]','[get,get_state,get_position,get_lumens,get_temperature]']
-    list_actions_french = ['[ouvrir,fermer,stop,my,NOMBRE]','[allumer,eteindre,basculer]','[allumer,eteindre,basculer]','[allumer,eteindre,basculer]','[activer,desactiver,partiel,activer_nuit,activer_parti]','[confort,confort-1,confort-2,eco,horsgel,eteindre,veille,manuel,auto,prog,NOMBRE]','[ouvrir,fermer,stop,my,NOMBRE]','[ouvrir,fermer,stop,my,NOMBRE]','[lancer,activer,executer]','[obtenir,etat,position,luminosite,temperature]']
+    list_categories = ['shutter','spotalarm','plug','light','alarm','heater','sunscreen','pergola','scene','sensor','manufacturer']
+    list_categories_french = ['volet','spotalarme','prise','lumiere','alarme','chauffage','rideau','pergola','scenario','capteur','fabricant']
+    list_actions = ['[open,close,stop,my,NUMBER]','[on,off,toggle]','[on,off,toggle]','[on,off,toggle]','[arm,disarm,partial,arm_night,arm_away]','[comfort,comfort-1,comfort-2,eco,frostprotection,off,standby,manual,auto,prog,NUMBER]','[open,close,stop,my,NUMBER]','[open,close,stop,my,NUMBER]','[on,activate,launch,execute]','[get,get_state,get_position,get_lumens,get_temperature]','[list,read:DATA_NAME,procedure:PROCEDURE_NAME[:PARAM=VALUE]] !! procedures change the settings inside the device, they need --allow-manufacturer-procedure']
+    list_actions_french = ['[ouvrir,fermer,stop,my,NOMBRE]','[allumer,eteindre,basculer]','[allumer,eteindre,basculer]','[allumer,eteindre,basculer]','[activer,desactiver,partiel,activer_nuit,activer_parti]','[confort,confort-1,confort-2,eco,horsgel,eteindre,veille,manuel,auto,prog,NOMBRE]','[ouvrir,fermer,stop,my,NOMBRE]','[ouvrir,fermer,stop,my,NOMBRE]','[lancer,activer,executer]','[obtenir,etat,position,luminosite,temperature]','[liste,read:NOM_DE_DONNEE,procedure:NOM_DE_PROCEDURE[:PARAM=VALEUR]] !! les procedures modifient les reglages internes de l\'equipement, elles necessitent --allow-manufacturer-procedure']
 
     app_config = tahoma_config.load_config(os.path.dirname(os.path.abspath(__file__)))
     token = app_config.token
@@ -208,6 +291,16 @@ def main():
         print( " Instead you can cancel the immediate preceding command (without affecting a 'wait for <SECONDS>' command)." )
         print( " To do this you can use the command 'cancel last action' just after a command that opens or closes an RTS device." )
         print( " For example: 'tahoma open shutter kitchen wait for 2 cancel last action' : It will stop the kitchen shutter after 2 seconds" )
+        print( "" )
+        print( " MANUFACTURER DATA AND MANUFACTURER PROCEDURES (advanced) :" )
+        print( " Some devices expose the internal data and the service procedures of their manufacturer." )
+        print( " Support depends on the device and on its firmware, it is discovered by 'tahoma --getlist'." )
+        print( "   tahoma -lm                                             (which of your devices support it)" )
+        print( '   tahoma list manufacturer ["Pergola"]                   (what this device supports)' )
+        print( '   tahoma read:current_position manufacturer ["Pergola"]  (read one data)' )
+        print( '   tahoma procedure:save_my_position manufacturer ["Pergola"] --allow-manufacturer-procedure' )
+        print( "" )
+        print( MANUFACTURER_WARNING )
         print( "" )
         print( " ********************************************************************" )
         print( " FIRST you must configure login and password : 'tahoma -c' " )
@@ -427,13 +520,13 @@ def main():
 
     for arg in sys.argv :
         if arg == '-h' or arg == '--help' :
-            print("tahoma -h, --help : "+version+"\n\nUsage:\n tahoma <ACTION> <CATEGORY> <NAME> \n\n You must provide at least three arguments\n For example : tahoma open shutter kitchen or tahoma ouvrir volet cuisine\n\n You can close a shutter or a sunscreen to a specific level (IO protocols only)\n For example : tahoma 25 shutter kitchen. It will open the shutter to 75% or close it to 25%\n\n You can also provide, as many as you wish, orders on the same line\n Tahoma will execute all orders one by one in the same process ;-)\n For example : tahoma open shutter kitchen arm alarm garden on plug room wait train garestation\n\nHelp options :\n -h,   --help                      Show this help\n -hf,  --help-french               Show this help in french\n -i,   --info                      Show more info\n\nPlugin options :\n -v,   --version                   Show the version of the plugin\n\n -c,   --configure                 To configure the plugin and store login and password in a text file which is located here : "+passwd_file+"\n -g,   --getlist                   Download the list of devices and store them here : "+list_of_tahoma_devices+"\n\n -u,   --username                  If you don't want to store the login, you can provide the mail-address with this option\n -p,   --password                  If you don't want to store the password, you can provide it with this option\n --pin                             You can provide the pin code of your gateway for a local use of the API\n --token                           You can provide a specific token for a local use of the API\n --local                           By providing this argument, you will force tahoma to run locally\n --remote                          By providing this argument, you will force tahoma to run remotely\n -s,  --server                     You can provide the name of the server you want to use to override the default server (somfy_europe, somfy_america, somfy_oceania or atlantic_cozytouch)\n\n -n --notification                 You can override the desktop notification to 'true' (For Linux system only)\n\n -l,   --list                      Show the complet list of devices installed\n -la,  --list-actions              Show the list of possible ACTIONS by CATEGORIES\n -lc,  --list-categories           Show all supported CATEGORIES of devices\n -lnf, --list-names                Show all installed devices by there NAMES\n\nOther commands:\n wait for <seconds>\n sleep for <seconds>               Tahoma will wait for <seconds> seconds to execute next action\n wait for <HOUR:MINUTE>            Tahoma will wait for a specific hour (24h-format)\n cancel last action                Tahoma will cancel the immediate preceding command (without affecting the 'wait for' command). This is useful for stopping an RTS device\n")
+            print("tahoma -h, --help : "+version+"\n\nUsage:\n tahoma <ACTION> <CATEGORY> <NAME> \n\n You must provide at least three arguments\n For example : tahoma open shutter kitchen or tahoma ouvrir volet cuisine\n\n You can close a shutter or a sunscreen to a specific level (IO protocols only)\n For example : tahoma 25 shutter kitchen. It will open the shutter to 75% or close it to 25%\n\n You can also provide, as many as you wish, orders on the same line\n Tahoma will execute all orders one by one in the same process ;-)\n For example : tahoma open shutter kitchen arm alarm garden on plug room wait train garestation\n\nHelp options :\n -h,   --help                      Show this help\n -hf,  --help-french               Show this help in french\n -i,   --info                      Show more info\n\nPlugin options :\n -v,   --version                   Show the version of the plugin\n\n -c,   --configure                 To configure the plugin and store login and password in a text file which is located here : "+passwd_file+"\n -g,   --getlist                   Download the list of devices and store them here : "+list_of_tahoma_devices+"\n\n -u,   --username                  If you don't want to store the login, you can provide the mail-address with this option\n -p,   --password                  If you don't want to store the password, you can provide it with this option\n --pin                             You can provide the pin code of your gateway for a local use of the API\n --token                           You can provide a specific token for a local use of the API\n --local                           By providing this argument, you will force tahoma to run locally\n --remote                          By providing this argument, you will force tahoma to run remotely\n -s,  --server                     You can provide the name of the server you want to use to override the default server (somfy_europe, somfy_america, somfy_oceania or atlantic_cozytouch)\n\n -n --notification                 You can override the desktop notification to 'true' (For Linux system only)\n\n -l,   --list                      Show the complet list of devices installed\n -la,  --list-actions              Show the list of possible ACTIONS by CATEGORIES\n -lc,  --list-categories           Show all supported CATEGORIES of devices\n -lnf, --list-names                Show all installed devices by there NAMES\n -lm,  --list-manufacturer         Show the devices supporting manufacturer data, with the data and the procedures each one advertises\n\n --allow-manufacturer-procedure    Required to actually run a 'procedure:...' of the MANUFACTURER category. Without it tahoma refuses and explains why\n\nManufacturer data and manufacturer procedures (advanced):\n tahoma list manufacturer [\"NAME\"]                 Show what this device supports\n tahoma read:<DATA_NAME> manufacturer [\"NAME\"]     Read one manufacturer data, changes nothing on the device\n tahoma procedure:<PROCEDURE_NAME>[:<PARAM>=<VALUE>] manufacturer [\"NAME\"] --allow-manufacturer-procedure\n\n"+MANUFACTURER_WARNING+"\n\nOther commands:\n wait for <seconds>\n sleep for <seconds>               Tahoma will wait for <seconds> seconds to execute next action\n wait for <HOUR:MINUTE>            Tahoma will wait for a specific hour (24h-format)\n cancel last action                Tahoma will cancel the immediate preceding command (without affecting the 'wait for' command). This is useful for stopping an RTS device\n")
             check_last_release ()
             exit()
 
     for arg in sys.argv :
         if arg == '-hf' or arg == '--help-french' :
-            print("tahoma -h --help : "+version+"\n\nUsage:\n tahoma <ACTION> <CATEGORIE> <NOM> \n\n Vous devez fournir au moins trois arguments\n Par exemple : tahoma ouvrir volet cuisine ou tahoma open shutter kitchen\n\n Vous pouvez fermer des rideaux ou des volets à un niveau precis (Seulement pour les équipements utilisant le protocole IO)\n Par exemple : tahoma 25 volet cuisine. Les volets vont s'ouvrir de 75% ou se fermer de 25%\n\n Vous pouvez aussi spécifier autant de commandes que vous le souhaitez sur la même ligne :\n Tahoma va executer chaque commande l'une aprés l'autre durant le même processus\n Par exemple : tahoma ouvrir volet cuisine confort chauffage salon\n\nOptions de l’aide :\n -h, --help                        Affiche les options de l’aide en anglais\n\nOptions de l’application :\n -v, --version                     Affiche la version de l’application\n -i, --info                        Afficher plus d'infos sur tahoma\n\n -c, --configure                   Renseigner l'identifiant et le mot de passe dans un fichier texte pour ne pas devoir les renseigner à chaque fois. Le fichier texte se situe dans : "+passwd_file+"\n -g, --getlist                     Télécharge la liste des équipements et la stocke dans "+list_of_tahoma_devices+"\n\n -n --notification                 Pour recevoir les notifications de bureau (Seulement pour Linux)\n\n -l, --list                        Affiche la liste téléchargée des équipements\n\n -u, --username                    Renseigner le nom d'utilisateur\n -p, --password                    Renseigner le mot de passe de Somfy-connect\n --pin                             Vous pouvez indiquer le code pin de votre passerelle pour un usage local de l'API\n --token                           Vous pouvez indiquer un token spécifique pour un usage local de l'API\n --local                           En fournissant cet argument, vous forcerez Tahoma à s’exécuter en local\n --remote                          En fournissant cet argument, vous forcerez Tahoma à s’exécuter à distance\n -s,  --server                     En fournissant cet argument, vous forcerez Tahoma à utiliser un serveur spécifique (somfy_europe, somfy_america, somfy_oceania or atlantic_cozytouch)\n\n -laf, --list-actions-french       Affiche la liste des ACTIONS possibles en français par CATEGORIES\n -lcf, --list-categories-french    Affiche toutes les CATEGORIES d'équipements pris en charge en français\n -lnf, --list-names-french         Affiche les NOMS des équipements installés par categories en français\n\nAutres commandes :\n attendre pendant <SECONDES>       Tahoma attendra <SECONDES> secondes avant d'éxécuter la commande suivante\n attendre heure <HEURE:MINUTE>     Tahoma attendra l'heure exacte  <HEURE:MINUTE> en format 24h avant d’exécuter la commande suivante\n annuler precedente commande       Tahoma annulera la commande précédente immédiate (sans affecter la commande 'attendre pendant'). Ceci est utile pour arrêter un périphérique RTS.")
+            print("tahoma -h --help : "+version+"\n\nUsage:\n tahoma <ACTION> <CATEGORIE> <NOM> \n\n Vous devez fournir au moins trois arguments\n Par exemple : tahoma ouvrir volet cuisine ou tahoma open shutter kitchen\n\n Vous pouvez fermer des rideaux ou des volets à un niveau precis (Seulement pour les équipements utilisant le protocole IO)\n Par exemple : tahoma 25 volet cuisine. Les volets vont s'ouvrir de 75% ou se fermer de 25%\n\n Vous pouvez aussi spécifier autant de commandes que vous le souhaitez sur la même ligne :\n Tahoma va executer chaque commande l'une aprés l'autre durant le même processus\n Par exemple : tahoma ouvrir volet cuisine confort chauffage salon\n\nOptions de l’aide :\n -h, --help                        Affiche les options de l’aide en anglais\n\nOptions de l’application :\n -v, --version                     Affiche la version de l’application\n -i, --info                        Afficher plus d'infos sur tahoma\n\n -c, --configure                   Renseigner l'identifiant et le mot de passe dans un fichier texte pour ne pas devoir les renseigner à chaque fois. Le fichier texte se situe dans : "+passwd_file+"\n -g, --getlist                     Télécharge la liste des équipements et la stocke dans "+list_of_tahoma_devices+"\n\n -n --notification                 Pour recevoir les notifications de bureau (Seulement pour Linux)\n\n -l, --list                        Affiche la liste téléchargée des équipements\n\n -u, --username                    Renseigner le nom d'utilisateur\n -p, --password                    Renseigner le mot de passe de Somfy-connect\n --pin                             Vous pouvez indiquer le code pin de votre passerelle pour un usage local de l'API\n --token                           Vous pouvez indiquer un token spécifique pour un usage local de l'API\n --local                           En fournissant cet argument, vous forcerez Tahoma à s’exécuter en local\n --remote                          En fournissant cet argument, vous forcerez Tahoma à s’exécuter à distance\n -s,  --server                     En fournissant cet argument, vous forcerez Tahoma à utiliser un serveur spécifique (somfy_europe, somfy_america, somfy_oceania or atlantic_cozytouch)\n\n -laf, --list-actions-french       Affiche la liste des ACTIONS possibles en français par CATEGORIES\n -lcf, --list-categories-french    Affiche toutes les CATEGORIES d'équipements pris en charge en français\n -lnf, --list-names-french         Affiche les NOMS des équipements installés par categories en français\n -lmf, --list-manufacturer-french  Affiche les équipements supportant les données fabricant, avec les données et les procédures annoncées par chacun\n\n --allow-manufacturer-procedure    Obligatoire pour exécuter réellement une 'procedure:...' de la catégorie FABRICANT. Sans cette option tahoma refuse et explique pourquoi\n\nDonnées fabricant et procédures fabricant (avancé) :\n tahoma liste fabricant [\"NOM\"]                    Affiche ce que cet équipement supporte\n tahoma read:<NOM_DE_DONNEE> fabricant [\"NOM\"]     Lit une donnée fabricant, ne modifie rien dans l'équipement\n tahoma procedure:<NOM_DE_PROCEDURE>[:<PARAM>=<VALEUR>] fabricant [\"NOM\"] --allow-manufacturer-procedure\n\n"+MANUFACTURER_WARNING_FRENCH+"\n\nAutres commandes :\n attendre pendant <SECONDES>       Tahoma attendra <SECONDES> secondes avant d'éxécuter la commande suivante\n attendre heure <HEURE:MINUTE>     Tahoma attendra l'heure exacte  <HEURE:MINUTE> en format 24h avant d’exécuter la commande suivante\n annuler precedente commande       Tahoma annulera la commande précédente immédiate (sans affecter la commande 'attendre pendant'). Ceci est utile pour arrêter un périphérique RTS.")
             check_last_release ()
             exit()
 
@@ -461,6 +554,8 @@ def main():
                     master_list.remove('')
                     for i in master_list :
                         bad_name.append(i.split(",")[0])
+                    # manufacturer.txt holds several lines per device, keep each name once
+                    bad_name = list(dict.fromkeys(bad_name))
                     print("\nHere is the list of the installed devices for the "+category.upper()+" category :\n"+str(bad_name))
                 except Exception:
                     print("\nCan't obtain any device from the "+category.upper()+" category\nDid you downloaded the list of Tahoma's devices ?\nIf not, execute tahoma --getlist \nFor more info execute tahoma -h")
@@ -483,6 +578,8 @@ def main():
                     master_list.remove('')
                     for j in master_list :
                         bad_name.append(j.split(",")[0])
+                    # manufacturer.txt holds several lines per device, keep each name once
+                    bad_name = list(dict.fromkeys(bad_name))
                     print("\nVoici la liste des équipements installés pour la catégorie "+list_categories_french[i].upper()+" :\n"+str(bad_name))
                 except Exception as e:
                     print(e)
@@ -502,6 +599,40 @@ def main():
             print( "Liste des actions par categories :")
             for i in range(0,len(list_actions_french)) :
                 print ( "Pour la categorie "+list_categories_french[i].upper()+" : "+list_actions_french[i] )
+            exit()
+
+    for arg in sys.argv :
+        if arg == '-lm' or arg == '--list-manufacturer' :
+            try:
+                manufacturer_devices = read_manufacturer_file(list_of_tahoma_manufacturers)
+            except Exception:
+                print("\nCan't obtain any manufacturer capability\nDid you downloaded the list of Tahoma's devices ?\nIf not, execute tahoma --getlist \nFor more info execute tahoma -h")
+                exit()
+            if not manufacturer_devices :
+                print("\nNone of your devices declares manufacturer data or manufacturer procedures.\nExecute tahoma --getlist to refresh this list.")
+                exit()
+            print("\nDevices supporting manufacturer data or manufacturer procedures :")
+            for device in manufacturer_devices.values() :
+                print_manufacturer_device(device)
+            print("\n"+MANUFACTURER_WARNING)
+            print("\nFor example :\n tahoma read:"+(list(manufacturer_devices.values())[0]['reads'] or ['DATA_NAME'])[0]+' manufacturer ["'+list(manufacturer_devices.values())[0]['label']+'"]')
+            exit()
+
+    for arg in sys.argv :
+        if arg == '-lmf' or arg == '--list-manufacturer-french' :
+            try:
+                manufacturer_devices = read_manufacturer_file(list_of_tahoma_manufacturers)
+            except Exception:
+                print("\nImpossible d'obtenir les capacites fabricant\nAvez-vous téléchargé la liste des équipements installés ?\nSinon executez la commande : tahoma --getlist \nPour plus d'info : tahoma --help-french")
+                exit()
+            if not manufacturer_devices :
+                print("\nAucun de vos équipements ne déclare de données ou de procédures fabricant.\nExécutez la commande : tahoma --getlist pour rafraîchir cette liste.")
+                exit()
+            print("\nEquipements supportant les données ou les procédures fabricant :")
+            for device in manufacturer_devices.values() :
+                print_manufacturer_device(device, french=True)
+            print("\n"+MANUFACTURER_WARNING_FRENCH)
+            print("\nPar exemple :\n tahoma read:"+(list(manufacturer_devices.values())[0]['reads'] or ['NOM_DE_DONNEE'])[0]+' fabricant ["'+list(manufacturer_devices.values())[0]['label']+'"]')
             exit()
 
     if len( sys.argv ) < 4 :
@@ -525,6 +656,10 @@ def main():
     parser.add_argument("-s", "--server")
 
     parser.add_argument("-n", "--notification", action='store_true')
+
+    # Deliberately long and without a short form : it must not be typed by accident.
+    # Only gates 'procedure:...' of the manufacturer category ; reads and listings are free.
+    parser.add_argument("--allow-manufacturer-procedure", action='store_true')
 
     parser.add_argument("action")
     parser.add_argument("category")
@@ -1211,6 +1346,128 @@ def main():
 #                if remove_accent(i.split(",")[0]) in remove_accent(str(name)) or remove_accent(str(name)) in remove_accent(i.split(",")[0]) :
 #                     command_state.append(i.split(",")[3])
 
+        ##########################MANUFACTURER DATA AND MANUFACTURER PROCEDURES
+
+        elif remove_accent(category) == 'manufacturer' or remove_accent(category) == 'fabricant':
+            try:
+                manufacturer_devices = read_manufacturer_file(list_of_tahoma_manufacturers)
+            except Exception:
+                print("\nDid you downloaded the list of Tahoma's devices ?.\nExecute tahoma --getlist \nFor more info execute tahoma -h or tahoma --info")
+                exit()
+            # Unlike the other categories, manufacturer.txt holds several lines per device,
+            # so the name is matched against the devices and not against the file lines.
+            matched = []
+            for device in manufacturer_devices.values() :
+                bad_name.append(device['label'])
+                if str(name).startswith("[") :
+                    if '['+remove_accent(device['label'])+']' == remove_accent(str(name)) or remove_accent(str(name)).replace('[','').replace(']','') == remove_accent(device['label']) :
+                        matched.append(device)
+                else :
+                    if remove_accent(device['label']) in remove_accent(str(name)) or remove_accent(str(name)) in remove_accent(device['label']) :
+                        matched.append(device)
+            if len(matched) == 0 :
+                print("There is no match. The NAME you gave is not exact, or this device does not support manufacturer data. Did you mean : "+str(bad_name)+" ? Choose a UNIQUE part of word from this results as NAME argument or use [''] with the full name\nIf you don't find your device in this results try tahoma --getlist\nSee tahoma --list-manufacturer for help.")
+                exit()
+            if len(matched) > 1 :
+                print("There is more than one match. The NAME you gave is not exact. Choose a UNIQUE part of word from this results as NAME argument or use [''] with the full name : "+str([device['label'] for device in matched])+"\nSee tahoma --list-manufacturer for help.")
+                exit()
+            manufacturer_device = matched[0]
+            success = 1
+
+            ##########################LIST : what this device supports, read from the local file
+
+            if remove_accent(action).lower() == 'list' or remove_accent(action).lower() == 'liste' :
+                print_manufacturer_device(manufacturer_device, french=(remove_accent(category) == 'fabricant'))
+                print("\n"+(MANUFACTURER_WARNING_FRENCH if remove_accent(category) == 'fabricant' else MANUFACTURER_WARNING))
+                exit()
+
+            ##########################READ : readManufacturerData, changes nothing on the device
+
+            elif remove_accent(action).lower().startswith('read:') :
+                data_name = str(action).split(":", 1)[1]
+                if not data_name :
+                    print("You must give the name of the data to read, for example : read:"+(manufacturer_device['reads'] or ['DATA_NAME'])[0])
+                    exit()
+                if 'read' not in manufacturer_device['supports'] :
+                    print("'"+manufacturer_device['label']+"' does not support the readManufacturerData command.\nSee tahoma --list-manufacturer for the devices that do.")
+                    exit()
+                if manufacturer_device['reads'] and data_name not in manufacturer_device['reads'] :
+                    print("'"+data_name+"' is not a readable manufacturer data of '"+manufacturer_device['label']+"'.\nAvailable data : "+", ".join(manufacturer_device['reads']))
+                    exit()
+                if not manufacturer_device['reads'] :
+                    print("'"+manufacturer_device['label']+"' supports readManufacturerData but advertises no list of readable data. Sending '"+data_name+"' anyway, the device may reject it.")
+                fonction = Command(name=OverkizCommand.READ_MANUFACTURER_DATA, parameters=[data_name])
+                url.append(manufacturer_device['device_url'])
+                good_name.append(manufacturer_device['label'])
+                success = 0
+
+            ##########################PROCEDURE : executeManufacturerProcedure, changes the device settings
+
+            elif remove_accent(action).lower().startswith('procedure:') :
+                # procedure:<name> or procedure:<name>:<param>=<value>[,<param>=<value>]
+                procedure_argument = str(action).split(":", 1)[1]
+                procedure_name = procedure_argument.split(":", 1)[0]
+                procedure_params = {}
+                if ":" in procedure_argument :
+                    for pair in procedure_argument.split(":", 1)[1].split(",") :
+                        if "=" not in pair :
+                            print("Procedure parameters must be written PARAM=VALUE, got : '"+pair+"'")
+                            exit()
+                        key, value = pair.split("=", 1)
+                        try:
+                            procedure_params[key] = int(value)
+                        except ValueError:
+                            try:
+                                procedure_params[key] = float(value)
+                            except ValueError:
+                                procedure_params[key] = value
+                if not procedure_name :
+                    print("You must give the name of the procedure to run, for example : procedure:"+(list(manufacturer_device['procedures']) or ['PROCEDURE_NAME'])[0])
+                    exit()
+                if 'procedure' not in manufacturer_device['supports'] :
+                    print("'"+manufacturer_device['label']+"' does not support the executeManufacturerProcedure command.\nSee tahoma --list-manufacturer for the devices that do.")
+                    exit()
+                if manufacturer_device['procedures'] and procedure_name not in manufacturer_device['procedures'] :
+                    print("'"+procedure_name+"' is not a manufacturer procedure of '"+manufacturer_device['label']+"'.\nAvailable procedures : "+", ".join(manufacturer_device['procedures']))
+                    exit()
+                expected_params = manufacturer_device['procedures'].get(procedure_name, [])
+                if expected_params and not procedure_params :
+                    print("Note : the procedure '"+procedure_name+"' declares the parameter(s) "+", ".join(expected_params)+". Running it without them, the device will use its own default.")
+                if not args.allow_manufacturer_procedure :
+                    print("\nERROR : refusing to run the manufacturer procedure '"+procedure_name+"' on '"+manufacturer_device['label']+"'.\n")
+                    print(MANUFACTURER_WARNING)
+                    print("\nIf that is really what you want, repeat the command with --allow-manufacturer-procedure :")
+                    print(' tahoma '+str(action)+' '+str(category)+' ["'+manufacturer_device['label']+'"] --allow-manufacturer-procedure')
+                    print("\nReading changes nothing and is always allowed :")
+                    print(' tahoma read:'+(manufacturer_device['reads'] or ['DATA_NAME'])[0]+' '+str(category)+' ["'+manufacturer_device['label']+'"]')
+                    exit()
+                print(MANUFACTURER_WARNING)
+                if procedure_params :
+                    fonction = Command(name=OverkizCommand.EXECUTE_MANUFACTURER_PROCEDURE, parameters=[procedure_name, procedure_params])
+                else :
+                    fonction = Command(name=OverkizCommand.EXECUTE_MANUFACTURER_PROCEDURE, parameters=[procedure_name])
+                url.append(manufacturer_device['device_url'])
+                good_name.append(manufacturer_device['label'])
+                success = 0
+
+            else :
+                print( "\n'"+action+"'"+" is not a valide action.\n")
+                print("Please provide one of this argument as action : [list read:DATA_NAME procedure:PROCEDURE_NAME[:PARAM=VALUE]]")
+                print("See tahoma --list-manufacturer for the data and the procedures your devices support.")
+
+            str1 = " "
+            if success == 0:
+                message = "Output action : "+remove_accent(action)+" "+remove_accent(category)+" "+str1.join(good_name)
+                if logs == 'Y':
+                    try:
+                        with open(log_place, "a") as f:
+                            f.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-{message}\n")
+                            f.close()
+                    except:
+                        print('Could not access the log file. Permission denied')
+                        print("If you don’t want to see this message again, reconfigure Tahoma to not create a log file (tahoma --configure) \nor install Tahoma in an accessible folder.")
+                print(message)
+
         ##########################WAIT FUNCTION
 
         elif remove_accent(action) == 'wait' or remove_accent(action) == 'sleep' or remove_accent(action) == 'attendre':
@@ -1302,7 +1559,7 @@ def main():
                                 app_config,
                                 category=remove_accent(category),
                                 action=remove_accent(action),
-                                local_capable_categories={'sunscreen','rideau','shutter','volet','heater','chauffage','pergola'},
+                                local_capable_categories={'sunscreen','rideau','shutter','volet','heater','chauffage','pergola','manufacturer','fabricant'},
                             )
                             if new_local_remote == 'local':
                                 if args.local:
@@ -1417,6 +1674,98 @@ def main():
                                             print(message)
                                         except: pass 
                                 except: pass
+                            elif remove_accent(category) == 'manufacturer' or remove_accent(category) == 'fabricant':
+                                # readManufacturerData returns nothing synchronously : execute_action_group
+                                # only yields an execId. The answer arrives later as a device state change,
+                                # so an event listener is registered before sending the command.
+                                try :
+                                    if token and gateway_id and local_remote == 'local' or token and gateway_id and new_local_remote == 'local' or local_remote == 'remote' or new_local_remote == 'remote':
+                                        collected_states = {}
+                                        execution_finished = ''
+                                        failure = ''
+                                        async with client_factory() as client:
+                                            await client.login()
+                                            await client.register_event_listener()
+                                            try:
+                                                exec_id = await client.execute_action_group( actions=[Action(device_url=device_url, commands=[fonction])] )
+                                                extra_polls = 0
+                                                # fetch_events is rate limited to 1 call per second
+                                                for _ in range(0, 14):
+                                                    await asyncio.sleep(1.5)
+                                                    try:
+                                                        events = await client.fetch_events()
+                                                    except Exception as exception:
+                                                        print(exception)
+                                                        break
+                                                    for event in events:
+                                                        if getattr(event, 'device_url', None) == device_url:
+                                                            for device_state in getattr(event, 'device_states', []) or []:
+                                                                collected_states[device_state.name] = device_state.value
+                                                        if getattr(event, 'exec_id', None) == exec_id:
+                                                            new_state = str(getattr(event, 'new_state', ''))
+                                                            if new_state in ('COMPLETED', 'FAILED'):
+                                                                execution_finished = new_state
+                                                                failure = str(getattr(event, 'failure_type', '') or '')
+                                                    if execution_finished:
+                                                        # the state change often trails the COMPLETED event
+                                                        extra_polls = extra_polls + 1
+                                                        if extra_polls > 2:
+                                                            break
+                                            finally:
+                                                try:
+                                                    await client.unregister_event_listener()
+                                                except Exception: pass
+                                            manufacturer_states = {state_name: value for state_name, value in collected_states.items() if 'manufacturer' in state_name.lower()}
+                                            if not manufacturer_states:
+                                                # fall back to polling the device states directly
+                                                try:
+                                                    for state in await client.get_state(device_url):
+                                                        if 'manufacturer' in state.name.lower():
+                                                            manufacturer_states[state.name] = state.value
+                                                except Exception: pass
+                                        if execution_finished == 'FAILED':
+                                            message = str1.join(good_name)+" : the device refused the command"+(" ("+failure+")" if failure else "")
+                                        elif manufacturer_states:
+                                            message = str1.join(good_name)+" : "+", ".join(state_name+"="+str(value) for state_name, value in manufacturer_states.items())
+                                        else:
+                                            message = str1.join(good_name)+" : the command was sent"+(" and "+execution_finished.lower() if execution_finished else "")+", but the device reported no manufacturer state back."
+                                        if logs == 'Y':
+                                            try:
+                                                with open(log_place, "a") as f:
+                                                    f.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-{message}\n")
+                                                    f.close()
+                                            except:
+                                                print('Could not access the log file. Permission denied')
+                                                print("If you don’t want to see this message again, reconfigure Tahoma to not create a log file (tahoma --configure) \nor install Tahoma in an accessible folder.")
+                                        print(message)
+                                        error = 0
+                                        try:
+                                            await session.close()
+                                        except: pass
+                                        return error
+                                    else:
+                                        error = 1
+                                        try:
+                                            await session.close()
+                                        except: pass
+                                        return error
+                                except (NotAuthenticatedError,ClientConnectorError) as e:
+                                    print(e)
+                                    error = 1
+                                    try:
+                                        await session.close()
+                                    except: pass
+                                    return error
+                                except Exception as e:
+                                    if str(e) == "Missing authorization token" or str(e).startswith('Cannot connect to host'):
+                                        error = 1
+                                    else:
+                                        print(e)
+                                        error = 0
+                                    try:
+                                        await session.close()
+                                    except: pass
+                                    return error
                             else :
                                 try :
                                     if token and gateway_id and local_remote == 'local' or token and gateway_id and new_local_remote == 'local' or local_remote == 'remote' or new_local_remote == 'remote':

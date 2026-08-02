@@ -14,9 +14,14 @@ or the TaHoma gateway's local API.
   (`-g`). Logs into Overkiz, lists devices + scenarios, classifies each
   device into a category by its `widget` string, and writes the per-category
   files under `temp/`.
-- `pyoverkiz/` — vendored Overkiz API client. Upstream:
-  https://github.com/iMicknl/python-overkiz-api. Treat as third-party code;
-  prefer not to hand-edit unless fixing something that also needs upstreaming.
+- `pyoverkiz` — the Overkiz API client, a real pip dependency pinned in
+  `requirements.txt` (`pyoverkiz==2.1.0`, needs Python ≥ 3.12). It used to be
+  vendored in-tree; it no longer is. Upstream:
+  https://github.com/iMicknl/python-overkiz-api. When you need to check a
+  model/enum/method signature, read that version's source rather than
+  guessing — the 1.x and 2.x APIs differ (`Command` is now attrs `kw_only`,
+  `execute_command` was replaced by
+  `execute_action_group(actions=[Action(...)])`).
 - `temp/*.txt` — **all runtime state and secrets, gitignored.** Contains:
   - `identifier_file.txt` — obfuscated (not strongly encrypted) cloud
     username:password
@@ -84,6 +89,46 @@ the specific device(s) involved** rather than assuming every device sharing
 a category behaves the same — a category-wide change that isn't
 widget-scoped can silently break other users' hardware even though it fixes
 one case.
+
+## The `manufacturer` category is capability-based, not widget-based
+
+`manufacturer` / `fabricant` is the one category that is *not* assigned from the
+`widget` string. `get_devices_url.py`'s `manufacturer_rows()` asks each device,
+at discovery time, whether it declares `readManufacturerData` /
+`executeManufacturerProcedure` / `writeManufacturerData`
+(`device.supports_command(...)`), and reads the
+`core:SupportedReadableManufacturerData` and
+`core:SupportedManufacturerProcedures` attributes
+(`device.attributes.get_value(...)`). Support varies with firmware, so nothing
+here may be hardcoded per widget or per model.
+
+`temp/manufacturer.txt` therefore holds **several lines per device**, unlike
+every other category file:
+
+```
+<label>,<device_url>,<widget>,supports,<read|procedure|write>
+<label>,<device_url>,<widget>,read,<data_name>
+<label>,<device_url>,<widget>,procedure,<procedure_name>,<param>;<param>
+```
+
+The first three columns stay identical to the other category files.
+`read_manufacturer_file()` in `tahoma.py` collapses the lines per `device_url`;
+the action block matches the user's NAME against **devices**, not against file
+lines — matching per line would trip the ">1 match" guard on every device.
+
+Two more things worth knowing:
+
+- **`readManufacturerData` answers asynchronously.** `execute_action_group`
+  returns only an `execId`. The value comes back later as a device-state change,
+  so the execution branch registers an event listener *before* sending, polls
+  `fetch_events()` (rate-limited to 1 call/s), and falls back to `get_state()`.
+  The state's name is firmware-dependent — match on the substring
+  `manufacturer`, don't pin `core:ManufacturerSettingsState`.
+- **`writeManufacturerData` is deliberately never sent.** Discovery reports that
+  a device declares it; tahoma has no code path that executes it. Keep it that
+  way unless the user explicitly asks otherwise.
+- `--allow-manufacturer-procedure` gates `procedure:` only. Reads and listings
+  run freely. The flag has no short form on purpose.
 
 ## Testing changes
 

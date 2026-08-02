@@ -246,6 +246,67 @@ Voici quelques exemples de commandes :
 
 
 
+# Données fabricant et procédures fabricant (avancé) :
+
+Certains équipements exposent les données internes et les procédures de service de leur fabricant, via
+les commandes Overkiz `readManufacturerData` et `executeManufacturerProcedure`. Une pergola bioclimatique
+Somfy peut par exemple indiquer sa date de production, son nombre d'obstacles détectés ou son sens de
+rotation, et propose des procédures comme l'enregistrement d'une fin de course ou la réinitialisation de
+l'actionneur.
+
+Le support dépend de l'équipement **et de son firmware** : tahoma ne peut donc pas le déduire de la
+catégorie. Il est découvert à l'exécution par `tahoma --getlist`, qui lit les commandes déclarées par
+chaque équipement ainsi que les attributs `core:SupportedReadableManufacturerData` et
+`core:SupportedManufacturerProcedures` qu'il annonce, puis enregistre le résultat dans
+`temp/manufacturer.txt`.
+
+> [!WARNING]
+> Les procédures fabricant agissent directement sur les réglages stockés dans l'équipement. Elles peuvent
+> déplacer les fins de course, effacer les positions enregistrées ou réinitialiser le moteur. **Il n'y a
+> pas de retour en arrière**, et tahoma ne peut pas savoir quelles procédures sont sans risque pour votre
+> matériel. La lecture (`read:...`) ne modifie rien et est toujours autorisée ; l'exécution d'une
+> procédure nécessite l'option explicite `--allow-manufacturer-procedure`.
+
+## Voir quels équipements le supportent :
+
+`tahoma -lmf` ou `tahoma --list-manufacturer-french` (`-lm` / `--list-manufacturer` en anglais)
+
+Cette commande affiche, pour chaque équipement concerné, les commandes fabricant qu'il déclare, les
+données qu'il peut lire et les procédures qu'il propose avec leurs paramètres.
+
+Pour un seul équipement : `tahoma liste fabricant ["Pergola"]`
+
+## Lire une donnée fabricant :
+
+`tahoma read:<NOM_DE_DONNEE> fabricant ["<NOM>"]`
+
+Par exemple : `tahoma read:current_position fabricant ["Pergola"]`
+
+Cela ne fait que lire, rien n'est modifié dans l'équipement. La réponse est asynchrone : tahoma attend
+quelques secondes puis affiche l'état fabricant reçu. Le `<NOM_DE_DONNEE>` est vérifié par rapport à la
+liste annoncée par l'équipement, une faute de frappe est donc rejetée avant tout envoi.
+
+## Exécuter une procédure fabricant :
+
+`tahoma procedure:<NOM_DE_PROCEDURE> fabricant ["<NOM>"] --allow-manufacturer-procedure`
+
+Par exemple : `tahoma procedure:save_my_position fabricant ["Pergola"] --allow-manufacturer-procedure`
+
+Quelques procédures acceptent des paramètres, indiqués sous la forme `:<PARAM>=<VALEUR>` (plusieurs
+séparés par une virgule) :
+
+`tahoma procedure:dead_man_down:duration=5 fabricant ["Pergola"] --allow-manufacturer-procedure`
+
+Sans `--allow-manufacturer-procedure`, tahoma refuse, explique pourquoi et affiche la commande exacte à
+répéter si c'est réellement ce que vous souhaitez. Dans ce cas, rien n'est envoyé à la passerelle. Cette
+option n'a volontairement pas de forme courte, afin qu'elle ne puisse pas être saisie par inadvertance.
+
+`writeManufacturerData` n'est volontairement **pas** exposée par tahoma. `tahoma -lmf` signale qu'un
+équipement la déclare, mais tahoma ne l'envoie jamais.
+
+
+
+
 # Créer un PATH vers tahoma :
 
 Pour pouvoir lancer tahoma directement dans le terminal, sans aller au dossier source, vous devez ajouter le dossier de tahoma au PATH :

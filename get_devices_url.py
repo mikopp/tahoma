@@ -14,10 +14,60 @@ import json
 from collections import defaultdict
 import base64
 import tahoma_config
+from pyoverkiz.enums import OverkizAttribute, OverkizCommand
 try:
     str_newrelic='Github'
 except:
     str_newrelic='Pypi'
+
+
+def manufacturer_rows(device) -> list:
+    """Return the temp/manufacturer.txt lines describing a device's manufacturer capabilities.
+
+    Support is per device and per firmware, so it is discovered at run time from the
+    device definition (which commands it declares) and from its attributes (which data
+    keys and procedures it advertises). Returns an empty list for devices that declare
+    none of the manufacturer commands.
+
+    Row layout, first three columns identical to every other temp/*.txt category file :
+        <label>,<device_url>,<widget>,supports,<read|procedure|write>
+        <label>,<device_url>,<widget>,read,<data_name>
+        <label>,<device_url>,<widget>,procedure,<procedure_name>,<param>;<param>
+    """
+    prefix = device.label+","+device.device_url+","+device.widget
+    rows = []
+
+    supports_read = device.supports_command(OverkizCommand.READ_MANUFACTURER_DATA)
+    supports_procedure = device.supports_command(OverkizCommand.EXECUTE_MANUFACTURER_PROCEDURE)
+    # writeManufacturerData is reported for information only, tahoma never sends it
+    supports_write = device.supports_command(OverkizCommand.WRITE_MANUFACTURER_DATA)
+
+    if not (supports_read or supports_procedure or supports_write):
+        return rows
+
+    if supports_read:
+        rows.append(prefix+",supports,read")
+    if supports_procedure:
+        rows.append(prefix+",supports,procedure")
+    if supports_write:
+        rows.append(prefix+",supports,write")
+
+    readable = device.attributes.get_value(OverkizAttribute.CORE_SUPPORTED_READABLE_MANUFACTURER_DATA)
+    for data_name in readable or []:
+        rows.append(prefix+",read,"+str(data_name))
+
+    procedures = device.attributes.get_value(OverkizAttribute.CORE_SUPPORTED_MANUFACTURER_PROCEDURES)
+    for procedure in procedures or []:
+        if isinstance(procedure, dict):
+            procedure_name = procedure.get("procedureName", "")
+            params = ";".join(str(param) for param in (procedure.get("params") or {}))
+        else:
+            procedure_name = str(procedure)
+            params = ""
+        if procedure_name:
+            rows.append(prefix+",procedure,"+str(procedure_name)+","+params)
+
+    return rows
 
 
 async def main() -> None:
@@ -34,6 +84,7 @@ async def main() -> None:
     list_of_tahoma_states = os.path.dirname(os.path.abspath(__file__))+'/temp/states.txt'
     list_of_tahoma_lights = os.path.dirname(os.path.abspath(__file__))+'/temp/lights.txt'
     list_of_tahoma_pergolas = os.path.dirname(os.path.abspath(__file__))+'/temp/pergolas.txt'
+    list_of_tahoma_manufacturers = os.path.dirname(os.path.abspath(__file__))+'/temp/manufacturer.txt'
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     app_config = tahoma_config.load_config(base_dir)
@@ -266,6 +317,7 @@ Voici les informations du trafic de l'application Tahoma :
     f11 = open(list_of_tahoma_states, 'w')
     f12 = open(list_of_tahoma_lights, 'w')
     f13 = open(list_of_tahoma_pergolas, 'w')
+    f14 = open(list_of_tahoma_manufacturers, 'w')
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-u", "--username")
@@ -350,6 +402,15 @@ Voici les informations du trafic de l'application Tahoma :
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_pergolas)
                 else :
                     print( "Device '"+device.label+"' NOT controlled by tahoma yet")
+                # Manufacturer capabilities are independent of the category above :
+                # any device, whatever its widget, may declare them.
+                try:
+                    rows = manufacturer_rows(device)
+                    if rows:
+                        f14.write("\n".join(rows)+"\n")
+                        print( "Device "+device.label+" supports manufacturer data. Added to : "+list_of_tahoma_manufacturers)
+                except Exception as exception:  # pylint: disable=broad-except
+                    print( "Could not read the manufacturer capabilities of '"+device.label+"' : "+str(exception))
 #                get_state = await client.get_state( device.device_url )
                 get_state = await asyncio.wait_for( client.get_state( device.device_url ), timeout=10.0)
                 i=0
@@ -428,6 +489,7 @@ Voici les informations du trafic de l'application Tahoma :
     f11.close()
     f12.close()
     f13.close()
+    f14.close()
 
     print( "\nIf you want to add a device you have found in this list but which is not controlled by tahoma yet, please provide info about this device from this file at \nhttps://github.com/pzim-devdata/tahoma/issues and I will update the plugin ;-). \nSonos products can't be had, use 'soco-cli' instead")
     print( "\nThe list of devices has been succesfully imported to the file : "+list_of_tahoma_devices+"\n" )
