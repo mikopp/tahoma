@@ -20,7 +20,6 @@ import re
 from getpass import getpass
 import time
 import datetime
-from pyoverkiz.const import SUPPORTED_SERVERS, OverkizServer
 from pyoverkiz.client import OverkizClient, Command
 from pyoverkiz.enums import OverkizCommand
 from pyoverkiz.models import Command
@@ -30,16 +29,15 @@ from aiohttp.client_exceptions import ClientConnectorError
 import requests
 import base64
 from hashlib import sha256
+import tahoma_config
 
 try:
     import __version__
     if __version__:
-        get_devices_url = "import get_devices_url"
         version = 'tahoma - portable Version '+ str(__version__.__version__)+' - by @pzim-devdata'
 except ImportError:
     from tahoma import __version__
     if __version__:
-        get_devices_url = "from tahoma import get_devices_url"
         version = 'tahoma - Pypi version '+ str(__version__.__version__)+' - by @pzim-devdata'
 
 version_number=str(__version__.__version__)
@@ -144,26 +142,13 @@ def main():
     list_actions = ['[open,close,stop,my,NUMBER]','[on,off,toggle]','[on,off,toggle]','[on,off,toggle]','[arm,disarm,partial,arm_night,arm_away]','[comfort,comfort-1,comfort-2,eco,frostprotection,off,standby,manual,auto,prog,NUMBER]','[open,close,stop,my,NUMBER]','[open,close,stop,my,NUMBER]','[on,activate,launch,execute]','[get,get_state,get_position,get_lumens,get_temperature]']
     list_actions_french = ['[ouvrir,fermer,stop,my,NOMBRE]','[allumer,eteindre,basculer]','[allumer,eteindre,basculer]','[allumer,eteindre,basculer]','[activer,desactiver,partiel,activer_nuit,activer_parti]','[confort,confort-1,confort-2,eco,horsgel,eteindre,veille,manuel,auto,prog,NOMBRE]','[ouvrir,fermer,stop,my,NOMBRE]','[ouvrir,fermer,stop,my,NOMBRE]','[lancer,activer,executer]','[obtenir,etat,position,luminosite,temperature]']
 
-    try :
-        f = open(token_file, 'r')
-        token = f.read()
-        f.close()
-    except FileNotFoundError:
-        token = ""
-
-    try :
-        f = open(gateway_id_file, 'r')
-        gateway_id = f.read()
-        f.close()
-    except FileNotFoundError:
-        gateway_id = ""
-
-    try :
-        f = open(local_remote_file, 'r')
-        local_remote = f.read()
-        f.close()
-    except FileNotFoundError:
-        local_remote = "remote"
+    app_config = tahoma_config.load_config(os.path.dirname(os.path.abspath(__file__)))
+    token = app_config.token
+    gateway_id = app_config.gateway_id
+    local_remote = app_config.local_remote
+    serverchoice = app_config.server
+    USERNAME = app_config.username
+    PASSWORD = app_config.password
 
     try :
         f = open(notification_consent, 'r')
@@ -179,13 +164,6 @@ def main():
         init_str=sha256(b"init").hexdigest()
     except:
         init_str="None"
-
-    try :
-        f = open(server_choosen, 'r')
-        serverchoice = f.read()
-        f.close()
-    except FileNotFoundError:
-        serverchoice = "somfy_europe"
 
     try :
         f = open(logs_consent, 'r')
@@ -277,12 +255,19 @@ def main():
 
     for arg in sys.argv :
         if arg == '-g' or arg == '--getlist' :
+            try:
+                import get_devices_url
+            except ImportError:
+                from tahoma import get_devices_url
             try :
-                exec(get_devices_url)
+                asyncio.run(get_devices_url.main())
                 exit()
-            except Exception as e: 
+            except NameError as e:
                 print(e)
-#                exec((open(os.path.dirname(os.path.abspath(__file__))+"/get_devices_url.py")).read())
+                print("\nYou didn't specified any USERNAME or PASSWORD.\nExecute tahoma --config or provide a temporary USERNAME and PASSWORD by executing tahoma -u <USERNAME> -p <PASSWORD> command")
+                exit()
+            except Exception as e:
+                print(e)
                 exit()
 
     for arg in sys.argv :
@@ -371,7 +356,7 @@ def main():
             print( "\nDo you want to encrypt your login in "+passwd_file+"? \nIf not, the file will be erased:\n(Y/n)")
             CONSENT = input()
             if CONSENT.lower() == 'y'or CONSENT.lower() == 'yes':
-                f = open(passwd_file, 'ab')
+                f = open(passwd_file, 'wb')
                 f.write(base64.b64encode(str(USERNAME+":"+PASSWORD+init_str).encode('utf-8')))
                 f.close()
                 print( "Your logins are encrypted in "+passwd_file )
@@ -530,16 +515,6 @@ def main():
         except:pass
         info()
         exit()
-    try :
-        f = open(passwd_file, 'rb')
-        content = f.read()
-        f.close()
-        content_str = base64.b64decode(content).decode('utf-8')
-        if len(content_str.split(':')[0]) > 0 :
-            USERNAME = content_str.split(':')[0]
-        if len(content_str.split(':')[1]) > 0 :
-            PASSWORD = content_str.split(':')[1].replace(init_str, "")
-    except: pass
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-u", "--username")
@@ -563,30 +538,19 @@ def main():
     args = parser.parse_args()
 #    print(f'Input action(s) : {args.action} {args.category} {args.name} '+' '.join(args.suite) )
 
-    if args.password:
-        PASSWORD = (f'{args.password}')
-        print("Your PASSWORD has been taken into account")
-    if args.username:
-        USERNAME = (f'{args.username}')
-        print("Your USERNAME has been taken into account")
-
-    if args.token:
-        token = (f'{args.token}')
-        print("Your token: "+token+" has been taken into account")
-    if args.pin:
-        gateway_id = (f'{args.pin}')
-        print("Your gateway pin code: "+gateway_id+" has been taken into account")
-
-    if args.local:
-        local_remote = "local"
-#        print("Will use tahoma with the 'local' config")
-    if args.remote:
-        local_remote = "remote"
-        print("Will use tahoma with the 'remote' config")
-
-    if args.server:
-        serverchoice = (f'{args.server}')
-        print("The server: "+serverchoice+" has been taken into account")
+    app_config.username = USERNAME
+    app_config.password = PASSWORD
+    app_config.server = serverchoice
+    app_config.token = token
+    app_config.gateway_id = gateway_id
+    app_config.local_remote = local_remote
+    tahoma_config.apply_cli_overrides(app_config, args)
+    USERNAME = app_config.username
+    PASSWORD = app_config.password
+    serverchoice = app_config.server
+    token = app_config.token
+    gateway_id = app_config.gateway_id
+    local_remote = app_config.local_remote
 
     if args.notification:
         notification = "y"
@@ -665,7 +629,7 @@ def main():
                 success = 0
             elif remove_accent(action).upper() == 'STOP' :
                 print("Please note that the 'stop' ACTION is only compatible with IO protocols and will not work with RTS devices. If you are using an RTS device, please use the command 'tahoma CANCEL LAST ACTION' instead.")
-                fonction = Command(OverkizCommand.STOP, [0])
+                fonction = Command(OverkizCommand.STOP, [])
                 success = 0
             elif remove_accent(action).upper() == 'MY' :
                 fonction = Command(OverkizCommand.MY, [0])
@@ -734,7 +698,7 @@ def main():
                 success = 0
             elif remove_accent(action).upper() == 'STOP' :
                 print("Please note that the 'stop' function is only compatible with IO protocols and will not work with RTS devices. If you are using an RTS device, please use the command 'tahoma CANCEL LAST ACTION' instead.")
-                fonction = Command(OverkizCommand.STOP, [0])
+                fonction = Command(OverkizCommand.STOP, [])
                 success = 0
             elif remove_accent(action).upper() == 'MY' :
                 fonction = Command(OverkizCommand.MY, [0])
@@ -776,6 +740,7 @@ def main():
             except ValueError:
                 print("\nDid you downloaded the list of Tahoma's devices ?.\nExecute tahoma --getlist \nFor more info execute tahoma -h or tahoma --info")
                 exit()
+            widget_of=[]
             for i in master_list :
                 bad_name.append(i.split(",")[0])
                 if str(name).startswith("[") :
@@ -783,42 +748,51 @@ def main():
                         url.append(i.split(",")[1])
                         too_many_urls.append(i.split(",")[0])
                         good_name.append(i.split(",")[0])
+                        widget_of.append(i.split(",")[2] if len(i.split(",")) > 2 else '')
                 else :
                     if remove_accent(i.split(",")[0]) in remove_accent(str(name)) or remove_accent(str(name)) in remove_accent(i.split(",")[0]) :
                          url.append(i.split(",")[1])
                          too_many_urls.append(i.split(",")[0])
                          good_name.append(i.split(",")[0])
+                         widget_of.append(i.split(",")[2] if len(i.split(",")) > 2 else '')
             if len(url)== 0 :
                 print("There is no match. The NAME you gave is not exact. Did you mean : "+str(bad_name)+" ? Choose a UNIQUE part of word from this results as NAME argument or use [''] with the full name\nIf you don't find your device in this results try tahoma --getlist\nSee tahoma --list-names for help.")
                 exit()
             if len(url) > 1 :
                 print("There is more than one match. The NAME you gave is not exact. Choose a UNIQUE part of word from this results as NAME argument or use [''] with the full name : "+str(too_many_urls)+"\nSee tahoma --list-names for help.")
                 exit()
+            # Bioclimatic pergolas (slats that tilt) use openSlats/closeSlats/setOrientation.
+            # Other pergolas (awning-type, e.g. PergolaHorizontalAwning/PositionableTiltedScreen) behave like sunscreens/shutters.
+            is_bioclimatic = 'BioclimaticPergola' in widget_of[0]
             success = 1
             if remove_accent(action).upper() == "OPEN" or remove_accent(action).upper() == "OUVRIR" :
-                fonction = Command(OverkizCommand.OPEN, [0])
+                fonction = Command(OverkizCommand.OPEN_SLATS, []) if is_bioclimatic else Command(OverkizCommand.OPEN, [0])
                 success = 0
             elif remove_accent(action).upper() == 'CLOSE' or remove_accent(action).upper() == "FERMER" :
-                fonction = Command(OverkizCommand.CLOSE, [0])
+                fonction = Command(OverkizCommand.CLOSE_SLATS, []) if is_bioclimatic else Command(OverkizCommand.CLOSE, [0])
                 success = 0
             elif remove_accent(action).upper() == 'STOP' :
                 print("Please note that the 'stop' function is only compatible with IO protocols and will not work with RTS devices. If you are using an RTS device, please use the command 'tahoma CANCEL LAST ACTION' instead.")
-                fonction = Command(OverkizCommand.STOP, [0])
+                fonction = Command(OverkizCommand.STOP, [])
                 success = 0
             elif remove_accent(action).upper() == 'MY' :
                 fonction = Command(OverkizCommand.MY, [0])
                 success = 0
             elif str(action).isnumeric() == True :
                 if 0 <= int(action) <= 100 :
-                    fonction = Command(OverkizCommand.SET_CLOSURE, [int(action)])
+                    if is_bioclimatic :
+                        fonction = Command(OverkizCommand.SET_ORIENTATION, [int(action)])
+                        print('Will set orientation to '+str(action)+' %')
+                    else :
+                        fonction = Command(OverkizCommand.SET_CLOSURE, [int(action)])
+                        print('Will close to '+str(action)+' %')
+                        print("Be careful! This function is only available for IO protocols. It doesn't work with RTS devices...")
                     success = 0
-                    print('Will close to '+str(action)+' %')
-                    print("Be careful! This function is only available for IO protocols. It doesn't work with RTS devices...")
                 else :
                     print("Your ACTION must be between 0 and 100. You have entered: "+str(action))
             else :
                 print( "\n'"+action+"'"+" is not a valide action.\n")
-                print("Please provide one of this argument as action : [open close stop my]")
+                print("Please provide one of this argument as action : [open close stop my NUMBER]")
             str1 = " "
             if success == 0:
 #                print("Output action : "+remove_accent(action).upper()+" "+remove_accent(category)+" "+str1.join(good_name)+ " \nwith url : "+str1.join(url))
@@ -828,7 +802,7 @@ def main():
                         with open(log_place, "a") as f:
                             f.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-{message}\n")
                             f.close()
-                    except: 
+                    except:
                         print('Could not access the log file. Permission denied')
                         print("If you don’t want to see this message again, reconfigure Tahoma to not create a log file (tahoma --configure) \nor install Tahoma in an accessible folder.")
                 print(message)
@@ -894,7 +868,7 @@ def main():
                 f.close()
                 if str1.join(good_name).upper()+"," in content.upper():
                     async def state() -> None:
-                        async with OverkizClient(USERNAME, PASSWORD, SUPPORTED_SERVERS[serverchoice]) as client:
+                        async with tahoma_config.build_client('remote', app_config) as client:
                             await client.login()
 #                            get_state = await client.get_state(str(url[0]))
                             get_state = await asyncio.wait_for( client.get_state(str(url[0])), timeout=10.0)
@@ -1261,7 +1235,7 @@ def main():
     ##########################GENERATE NEW TOKEN AND GATEWAY.ID FOR 'LOCAL' CONFIG
 
         async def get_token_or_gateway_id() -> None:
-            async with OverkizClient(USERNAME, PASSWORD, SUPPORTED_SERVERS[serverchoice]) as client:
+            async with tahoma_config.build_client('remote', app_config) as client:
                 await client.login()
                 gateways = await client.get_gateways()
                 gateway_id_list = []
@@ -1319,34 +1293,40 @@ def main():
 
         try:
             async def main() -> None:
+                app_config.token = token
+                app_config.gateway_id = gateway_id
+                app_config.local_remote = local_remote
+                app_config.username = USERNAME
+                app_config.password = PASSWORD
+                app_config.server = serverchoice
                 if local_remote == 'local':
                     great = 1
                     for value in [False,True]: # set verify_ssl to True then False if error occur. Verify_ssl to False if you don't use the .local hostname
                         if great == 1:
-                            if remove_accent(category) == 'sunscreen' or remove_accent(category) == 'rideau' or remove_accent(category) == 'shutter' or remove_accent(category) == 'volet'or remove_accent(category) == 'heater' or remove_accent(category) == 'chauffage':
-                                new_local_remote = 'local'
+                            new_local_remote = tahoma_config.resolve_local_capability(
+                                app_config,
+                                category=remove_accent(category),
+                                action=remove_accent(action),
+                                local_capable_categories={'sunscreen','rideau','shutter','volet','heater','chauffage','pergola'},
+                            )
+                            if new_local_remote == 'local':
                                 if args.local:
                                     print("Tahoma has been executed with the 'local' config for the category '"+category.lower()+"'")
+                                if not (token and gateway_id):
+                                    print("Local API selected for category '"+category.lower()+"' but no token/gateway_id configured yet. Tahoma will try to auto-provision one; run 'tahoma -c' or pass --token/--pin to avoid this.")
                                 try:
                                     session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=value))
                                     great = 0
-#                                    print("verify_ssl="+str(value))
-                                    overkiz_function = 'OverkizClient(username="", password="", token="'+token+'", session=session, server=OverkizServer(name="Somfy TaHoma (local)",endpoint="https://gateway-'+gateway_id+'.local:8443/enduser-mobile-web/1/enduserAPI/",manufacturer="Somfy",configuration_url=None,))'
+                                    client_factory = lambda value=value, session=session: tahoma_config.build_client('local', app_config, session=session, verify_ssl=value)
                                     break
                                 except Exception as e:
                                     print("Error occure with verify_ssl="+str(value)+":\n"+e)
                             else:
-                                new_local_remote = 'remote'
-                                great =0
-                                if remove_accent(action) != 'wait' and remove_accent(action) != 'attendre':
-                                    if remove_accent(action) != 'cancel' and remove_accent(action) != 'annuler':
-                                        print("Tahoma has been executed with the 'global' config because the '"+category.lower()+"' category is not yet supported for local use")
-                                    else:
-                                        print("\nCan't perform a CANCEL action when using a local API of tahoma: \nRun tahoma with the '--remote' argument.\n")
-                                overkiz_function = 'OverkizClient(username="'+str(USERNAME)+'", password="'+str(PASSWORD)+'", server=SUPPORTED_SERVERS["'+str(serverchoice)+'"])'
+                                great = 0
+                                client_factory = lambda: tahoma_config.build_client('remote', app_config)
                 else:
                     new_local_remote = 'remote'
-                    overkiz_function = 'OverkizClient(username="'+str(USERNAME)+'", password="'+str(PASSWORD)+'", server=SUPPORTED_SERVERS["'+str(serverchoice)+'"])'
+                    client_factory = lambda: tahoma_config.build_client('remote', app_config)
                 try :
                     j=0
                     for device_url in url :
@@ -1383,8 +1363,8 @@ def main():
                         else :
                             if remove_accent(category) == 'scene' or remove_accent(category) == 'scenario':
                                 try :
-                                    async with OverkizClient(USERNAME, PASSWORD, SUPPORTED_SERVERS[serverchoice]) as client:
-#                                    async with eval(overkiz_function) as client:
+                                    async with tahoma_config.build_client('remote', app_config) as client:
+#                                    async with client_factory() as client:
                                         await client.login()
                                         exec_id = await client.execute_scenario(device_url)
 #                                        error = 0
@@ -1405,7 +1385,7 @@ def main():
                                 except : pass
                             elif remove_accent(category) == 'sensor' or remove_accent(category) == 'capteur':
                                 try:
-                                    async with OverkizClient(USERNAME, PASSWORD, SUPPORTED_SERVERS[serverchoice]) as client:
+                                    async with tahoma_config.build_client('remote', app_config) as client:
                                         await client.login()
 #                                        get_state = await client.get_state(device_url)
                                         get_state = await asyncio.wait_for( client.get_state( device_url ), timeout=10.0)
@@ -1423,7 +1403,7 @@ def main():
                                 except :pass
                             elif remove_accent(action).upper() == 'CANCEL' or remove_accent(action).upper() == 'ANNULER':
                                 try:
-                                    async with OverkizClient(USERNAME, PASSWORD, SUPPORTED_SERVERS[serverchoice]) as client:
+                                    async with tahoma_config.build_client('remote', app_config) as client:
                                         await client.login()
                                         executions = await client.get_current_executions()
                                         for execution in executions:
@@ -1445,7 +1425,7 @@ def main():
                             else :
                                 try :
                                     if token and gateway_id and local_remote == 'local' or token and gateway_id and new_local_remote == 'local' or local_remote == 'remote' or new_local_remote == 'remote':
-                                        async with eval(overkiz_function) as client:
+                                        async with client_factory() as client:
                                             await client.login()
     #                                        print("Local API connection succesfull!")
     #                                        print(str(fonction))
