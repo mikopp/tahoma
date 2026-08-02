@@ -5,27 +5,18 @@
 #MIT Licence
 
 import asyncio
-import sys
 import argparse
 import os
 import requests
 import aiohttp
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 from collections import defaultdict
-import re
-from getpass import getpass
-import time
-from pyoverkiz.enums import OverkizCommand
-from pyoverkiz.models import Command
-from pyoverkiz.models import Scenario
 import base64
 import tahoma_config
 try:
-    import __version__
     str_newrelic='Github'
 except:
-    from tahoma import __version__
     str_newrelic='Pypi'
 
 
@@ -172,7 +163,7 @@ async def main() -> None:
 
             # Mise à jour du fichier stats
             stats_content = json.dumps(current_content, indent=2)
-            put_response = update_file(stats_url, stats_content, sha, f"Update stats ({machine_id[:6]})")
+            update_file(stats_url, stats_content, sha, f"Update stats ({machine_id[:6]})")
 
             # Création des statistiques mensuelles
             monthly_stats = defaultdict(lambda: {
@@ -319,74 +310,74 @@ Voici les informations du trafic de l'application Tahoma :
 
     try:
         devices = await client.get_devices()
-        scenarios = await client.get_scenarios()
+        scenarios = await client.get_action_groups()
         try :
-            f2.write(f"Devices :\n")
+            f2.write("Devices :\n")
             for device in devices:
-                print("\n"+device.label+","+device.id+","+device.widget+","+device.ui_class+","+device.controllable_name+"")
-                print(f"{device.label},{device.id},{device.widget},{device.ui_class},{device.controllable_name}")
-                f2.write("\n"+device.label+","+device.id+","+device.widget+","+device.ui_class+","+device.controllable_name+"\n")
-                f2.write(f"{device.label},{device.id},{device.widget},{device.ui_class},{device.controllable_name}\n")
+                print("\n"+device.label+","+device.device_url+","+device.widget+","+device.ui_class+","+device.controllable_name+"")
+                print(f"{device.label},{device.device_url},{device.widget},{device.ui_class},{device.controllable_name}")
+                f2.write("\n"+device.label+","+device.device_url+","+device.widget+","+device.ui_class+","+device.controllable_name+"\n")
+                f2.write(f"{device.label},{device.device_url},{device.widget},{device.ui_class},{device.controllable_name}\n")
                 if "Shutter" in device.widget or "PositionableTiltedScreen" in device.widget:
-                    f3.write(device.label+","+device.id+","+device.widget+"\n")
+                    f3.write(device.label+","+device.device_url+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_shutters)
                 elif "Heater" in device.widget :
-                    f4.write(device.label+","+device.id+","+device.widget+"\n")
+                    f4.write(device.label+","+device.device_url+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_heaters)
                 elif "MyFoxAlarm" in device.widget :
-                    f5.write(device.label+","+device.id+","+device.widget+"\n")
+                    f5.write(device.label+","+device.device_url+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_alarms)
                 elif "StatefulOnOffLight" in device.widget :
-                    f6.write(device.label+","+device.id+","+device.widget+"\n")
+                    f6.write(device.label+","+device.device_url+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_spotalarms)
                 elif "StatelessOnOff" in device.widget :
-                    f7.write(device.label+","+device.id+","+device.widget+"\n")
+                    f7.write(device.label+","+device.device_url+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_plugs)
                 elif "StatefulOnOff" in device.widget :
-                    f7.write(device.label+","+device.id+","+device.widget+"\n")
+                    f7.write(device.label+","+device.device_url+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_plugs)
                 elif "PositionableScreen" in device.widget or "PositionableHorizontalAwning" in device.widget:
-                    f8.write(device.label+","+device.id+","+device.widget+"\n")
+                    f8.write(device.label+","+device.device_url+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_sunscreens)
                 elif "Sensor" in device.widget:
-                    f10.write(device.label+","+device.id+","+device.widget+"\n")
+                    f10.write(device.label+","+device.device_url+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_sensors)
                 elif "Light" in device.widget:
-                    f12.write(device.label+","+device.id+","+device.widget+"\n")
+                    f12.write(device.label+","+device.device_url+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_lights)
                 elif "PositionableTiltedScreen" in device.widget or "PergolaHorizontalAwning" in device.widget or "BioclimaticPergola" in device.widget:
-                    f13.write(device.label+","+device.id+","+device.widget+"\n")
+                    f13.write(device.label+","+device.device_url+","+device.widget+"\n")
                     print( "Device "+device.label+" controled by tahoma. Added to : "+list_of_tahoma_pergolas)
                 else :
                     print( "Device '"+device.label+"' NOT controlled by tahoma yet")
-#                get_state = await client.get_state( device.id )
-                get_state = await asyncio.wait_for( client.get_state( device.id ), timeout=10.0)
+#                get_state = await client.get_state( device.device_url )
+                get_state = await asyncio.wait_for( client.get_state( device.device_url ), timeout=10.0)
                 i=0
                 for i in range(len(get_state)) :
     #                print(i)
     #                print(str(get_state[i].value))
                     if "closed" in str(get_state[i].value) or "open" in str(get_state[i].value) :
-                        f11.write(device.label+","+device.id+","+device.widget+",get_state["+str(i)+"].value,['closed','open'],"+str(get_state[i].value)+"\n")
+                        f11.write(device.label+","+device.device_url+","+device.widget+",get_state["+str(i)+"].value,['closed','open'],"+str(get_state[i].value)+"\n")
                         print("States for "+device.label+" added to : "+ list_of_tahoma_states)
                     if "StatefulOnOff" == device.widget or "StatefulOnOffLight" == device.widget :
-                        f11.write(device.label+","+device.id+","+device.widget+",get_state["+str(i)+"].value,['on','off'],"+str(get_state[i].value)+"\n")
+                        f11.write(device.label+","+device.device_url+","+device.widget+",get_state["+str(i)+"].value,['on','off'],"+str(get_state[i].value)+"\n")
                         print("States for "+device.label+" added to : "+ list_of_tahoma_states)
                     if "armed" in str(get_state[i].value) or "disarmed" in str(get_state[i].value) :
-                        f11.write(device.label+","+device.id+","+device.widget+",get_state["+str(i)+"].value,['armed','disarmed'],"+str(get_state[i].value)+"\n")
+                        f11.write(device.label+","+device.device_url+","+device.widget+",get_state["+str(i)+"].value,['armed','disarmed'],"+str(get_state[i].value)+"\n")
                         print("States for "+device.label+" added to : "+ list_of_tahoma_states)
                     if "Heater" not in device.widget and 'DomesticHotWaterTank' not in device.widget and "StatefulOnOff" not in device.widget and "StatefulOnOffLight" not in device.widget and 'TSKAlarmController' not in device.widget:
                             if str(get_state[i].value) == 'on' or str(get_state[i].value) =='off':
-                                f11.write(device.label+","+device.id+","+device.widget+",get_state["+str(i)+"].value,['on','off'],"+str(get_state[i].value)+"\n")
+                                f11.write(device.label+","+device.device_url+","+device.widget+",get_state["+str(i)+"].value,['on','off'],"+str(get_state[i].value)+"\n")
                                 print("States for "+device.label+" added to : "+ list_of_tahoma_states)
                     if 'io:TargetHeatingLevelState' not in str(get_state[i].name) and 'io:LastTargetHeatingLevelState' not in str(get_state[i].name) and 'core:OnOffState' not in str(get_state[i].name):
                             if 'TSKAlarmController' not in device.widget and 'DomesticHotWaterTank' not in device.widget:
                                 if str(get_state[i].value) == 'eco' or str(get_state[i].value) =='comfort' or str(get_state[i].value) =='frostprotection' or str(get_state[i].value) =='off':
-                                    f11.write(device.label+","+device.id+","+device.widget+",get_state["+str(i)+"].value,['eco','comfort','frostprotection','off'],"+str(get_state[i].value)+"\n")
+                                    f11.write(device.label+","+device.device_url+","+device.widget+",get_state["+str(i)+"].value,['eco','comfort','frostprotection','off'],"+str(get_state[i].value)+"\n")
                                     print("States for "+device.label+" added to : "+ list_of_tahoma_states)
                     if 'TemperatureSensor' == device.widget :
                         try:
                             if str(get_state[i].name) == 'core:TemperatureState':
-                                f11.write(device.label+","+device.id+","+device.widget+",get_state["+str(i)+"].value,['°C'],"+str(get_state[i].value)+"\n")
+                                f11.write(device.label+","+device.device_url+","+device.widget+",get_state["+str(i)+"].value,['°C'],"+str(get_state[i].value)+"\n")
                                 print("States for "+device.label+" added to : "+ list_of_tahoma_states)
                         except : pass
                     if 'LuminanceSensor' == device.widget :
@@ -394,19 +385,19 @@ Voici les informations du trafic de l'application Tahoma :
                         try:
                             if str(get_state[i].name) == 'core:LuminanceState' :
                             #if str(int(get_state[i].value)).isnumeric() == True :
-                                f11.write(device.label+","+device.id+","+device.widget+",get_state["+str(i)+"].value,['Lumens'],"+str(get_state[i].value)+"\n")
+                                f11.write(device.label+","+device.device_url+","+device.widget+",get_state["+str(i)+"].value,['Lumens'],"+str(get_state[i].value)+"\n")
                                 print("States for "+device.label+" added to : "+ list_of_tahoma_states)
                         except : pass
                     if 'CumulativeElectricPowerConsumptionSensor' == device.widget :
                         try:
                             if str(get_state[i].name) == 'core:ElectricEnergyConsumptionState' :
-                                f11.write(device.label+","+device.id+","+device.widget+",get_state["+str(i)+"].value,['kWh'],"+str(get_state[i].value)+"\n")
+                                f11.write(device.label+","+device.device_url+","+device.widget+",get_state["+str(i)+"].value,['kWh'],"+str(get_state[i].value)+"\n")
                                 print("States for "+device.label+" added to : "+ list_of_tahoma_states)
                         except : pass
                     if 'DomesticHotWaterTank' == device.widget :
                         try:
                             if str(get_state[i].name) == 'io:ForceHeatingState' :
-                                f11.write(device.label+","+device.id+","+device.widget+",get_state["+str(i)+"].value,['on','off'],"+str(get_state[i].value)+"\n")
+                                f11.write(device.label+","+device.device_url+","+device.widget+",get_state["+str(i)+"].value,['on','off'],"+str(get_state[i].value)+"\n")
                                 print("States for "+device.label+" added to : "+ list_of_tahoma_states)
                         except : pass
 
@@ -417,7 +408,7 @@ Voici les informations du trafic de l'application Tahoma :
         await client.close()
         print("\nScenes :\n")
     try :
-        f2.write(f"\nScenes :\n")
+        f2.write("\nScenes :\n")
         for scenario in scenarios:
             f2.write(f"{scenario.label},{scenario.oid}\n")
             f9.write(f"{scenario.label},{scenario.oid}\n")

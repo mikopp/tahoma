@@ -1,0 +1,7 @@
+extend-exclude = [
+    "argparse.py", "os.py", "sys.py", "getpass.py",
+    "tahoma-gpt.py", "tahoma-gpt_french.py",
+]
+
+[lint]
+select = ["F"]

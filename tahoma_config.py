@@ -9,8 +9,11 @@ import os
 from dataclasses import dataclass
 from hashlib import sha256
 
+from pyoverkiz.auth.credentials import LocalTokenCredentials, UsernamePasswordCredentials
 from pyoverkiz.client import OverkizClient
-from pyoverkiz.const import SUPPORTED_SERVERS, OverkizServer
+from pyoverkiz.const import LOCAL_API_PATH, SUPPORTED_SERVERS
+from pyoverkiz.enums.server import APIType
+from pyoverkiz.models import ServerConfig
 
 
 @dataclass
@@ -138,16 +141,18 @@ def build_client(mode, config, session=None, verify_ssl=False):
     """Construct a real OverkizClient directly - no eval()."""
     if mode == 'local':
         return OverkizClient(
-            username="",
-            password="",
-            token=config.token,
+            credentials=LocalTokenCredentials(token=config.token),
             verify_ssl=verify_ssl,
             session=session,
-            server=OverkizServer(
+            server=ServerConfig(
                 name="Somfy TaHoma (local)",
-                endpoint=f"https://gateway-{config.gateway_id}.local:8443/enduser-mobile-web/1/enduserAPI/",
+                endpoint=f"https://gateway-{config.gateway_id}.local:8443{LOCAL_API_PATH}",
                 manufacturer="Somfy",
+                api_type=APIType.LOCAL,
                 configuration_url=None,
             ),
         )
-    return OverkizClient(config.username, config.password, SUPPORTED_SERVERS[config.server])
+    return OverkizClient(
+        credentials=UsernamePasswordCredentials(username=config.username, password=config.password),
+        server=SUPPORTED_SERVERS[config.server],
+    )
