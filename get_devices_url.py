@@ -16,13 +16,11 @@ from collections import defaultdict
 import re
 from getpass import getpass
 import time
-from pyoverkiz.const import SUPPORTED_SERVERS, OverkizServer
-from pyoverkiz.client import OverkizClient
 from pyoverkiz.enums import OverkizCommand
 from pyoverkiz.models import Command
 from pyoverkiz.models import Scenario
 import base64
-from hashlib import sha256
+import tahoma_config
 try:
     import __version__
     str_newrelic='Github'
@@ -32,8 +30,6 @@ except:
 
 
 async def main() -> None:
-
-    passwd_file = os.path.dirname(os.path.abspath(__file__))+'/temp/identifier_file.txt'
 
     list_of_tahoma_devices = os.path.dirname(os.path.abspath(__file__))+'/temp/list_of_tahoma_devices.txt'
     list_of_tahoma_shutters = os.path.dirname(os.path.abspath(__file__))+'/temp/shutters.txt'
@@ -48,33 +44,8 @@ async def main() -> None:
     list_of_tahoma_lights = os.path.dirname(os.path.abspath(__file__))+'/temp/lights.txt'
     list_of_tahoma_pergolas = os.path.dirname(os.path.abspath(__file__))+'/temp/pergolas.txt'
 
-    server_choosen =  os.path.dirname(os.path.abspath(__file__))+'/temp/server_choosen.txt'
-    init_file = os.path.dirname(os.path.abspath(__file__))+'/__init__.py'
-
-    token_file = os.path.dirname(os.path.abspath(__file__))+'/temp/token.txt'
-    gateway_id_file = os.path.dirname(os.path.abspath(__file__))+'/temp/gateway_id.txt'
-    local_remote_file = os.path.dirname(os.path.abspath(__file__))+'/temp/local_remote.txt'
-
-    try :
-        f = open(local_remote_file, 'r')
-        local_remote = f.read().strip()
-        f.close()
-    except FileNotFoundError:
-        local_remote = "remote"
-
-    try :
-        f = open(token_file, 'r')
-        token = f.read().strip()
-        f.close()
-    except FileNotFoundError:
-        token = ""
-
-    try :
-        f = open(gateway_id_file, 'r')
-        gateway_id = f.read().strip()
-        f.close()
-    except FileNotFoundError:
-        gateway_id = ""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    app_config = tahoma_config.load_config(base_dir)
 
 #    consent_statistics = os.path.dirname(os.path.abspath(__file__))+'/temp/consent_statistics.txt'
 
@@ -292,13 +263,6 @@ Voici les informations du trafic de l'application Tahoma :
             print(f"Erreur: {str(e)}")
 
 
-    try :
-        f = open(server_choosen, 'r')
-        serverchoice = f.read()
-        f.close()
-    except :
-        serverchoice = "somfy_europe"
-
     f2 = open(list_of_tahoma_devices, 'w')
     f3 = open(list_of_tahoma_shutters, 'w')
     f4 = open(list_of_tahoma_heaters, 'w')
@@ -324,66 +288,27 @@ Voici les informations du trafic de l'application Tahoma :
     parser.add_argument("--remote", action='store_true')
     args = parser.parse_args()
 
-    if args.token:
-        token = args.token
-    if args.pin:
-        gateway_id = args.pin
-    if args.local:
-        local_remote = "local"
-    if args.remote:
-        local_remote = "remote"
+    tahoma_config.apply_cli_overrides(app_config, args)
 
-    try:
-        f = open(init_file, 'r')
-        init = f.read()
-        f.close()
-        init_str=sha256(b"init").hexdigest()
-    except:
-        init_str="None"
+    mode = tahoma_config.resolve_local_capability(app_config)
+    if mode == 'local':
+        ok, message = tahoma_config.check_local_credentials(app_config)
+        if not ok:
+            print(message + "Falling back to the cloud API.")
+            mode = 'remote'
 
-    try :
-        f = open(passwd_file, 'rb')
-        content = f.read()
-        f.close()
-        content_str = base64.b64decode(content).decode('utf-8')
-        if len(content_str.split(':')[0]) > 0 :
-            USERNAME = content_str.split(':')[0]
-        if len(content_str.split(':')[1]) > 0 :
-            PASSWORD = content_str.split(':')[1].replace(init_str, "")
-    except: pass
-
-    for arg in sys.argv:
-        if args.password:
-            PASSWORD = (f'{args.password}')
-        if args.username:
-            USERNAME = (f'{args.username}')
-        if args.server:
-            serverchoice = (f'{args.server}')
-
-    if local_remote == 'local' and gateway_id and token:
-        client_kwargs = {
-            "username": "",
-            "password": "",
-            "token": token,
-            "verify_ssl": False,
-            "server": OverkizServer(
-                name="Somfy TaHoma (local)",
-                endpoint=f"https://gateway-{gateway_id}.local:8443/enduser-mobile-web/1/enduserAPI/",
-                manufacturer="Somfy",
-                configuration_url=None,
-            ),
-        }
+    if mode == 'local':
         session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False))
-        client = OverkizClient(**client_kwargs, session=session)
+        client = tahoma_config.build_client('local', app_config, session=session, verify_ssl=False)
         try:
             await client.login()
         except Exception as exception:  # pylint: disable=broad-except
             await session.close()
             print(exception)
             print("\nCould not connect to the local API. Falling back to the cloud API.")
-            local_remote = "remote"
-    if local_remote != 'local' or not (gateway_id and token):
-        client = OverkizClient(USERNAME, PASSWORD, SUPPORTED_SERVERS[serverchoice])
+            mode = 'remote'
+    if mode != 'local':
+        client = tahoma_config.build_client('remote', app_config)
         await client.__aenter__()
         try:
             await client.login()
@@ -516,10 +441,11 @@ Voici les informations du trafic de l'application Tahoma :
     print( "\nIf you want to add a device you have found in this list but which is not controlled by tahoma yet, please provide info about this device from this file at \nhttps://github.com/pzim-devdata/tahoma/issues and I will update the plugin ;-). \nSonos products can't be had, use 'soco-cli' instead")
     print( "\nThe list of devices has been succesfully imported to the file : "+list_of_tahoma_devices+"\n" )
 
-try:
-    asyncio.run(main())
-    exit(0)
-except NameError as e:
-    print(e)
-    print("\nYou didn't specified any USERNAME or PASSWORD.\nExecute tahoma --config or provide a temporary USERNAME and PASSWORD by executing tahoma -u <USERNAME> -p <PASSWORD> command")
-    exit(1)
+if __name__ == '__main__':
+    try:
+        asyncio.run(main())
+        exit(0)
+    except NameError as e:
+        print(e)
+        print("\nYou didn't specified any USERNAME or PASSWORD.\nExecute tahoma --config or provide a temporary USERNAME and PASSWORD by executing tahoma -u <USERNAME> -p <PASSWORD> command")
+        exit(1)
